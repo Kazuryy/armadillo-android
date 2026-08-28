@@ -9,3 +9,5 @@ val TertiaryDark = Color(0xFFFFC107)
 val PrimaryLight = Color(0xFFFF5722)
 val SecondaryLight = Color(0xFFFF9800)
 val TertiaryLight = Color(0xFFFFC107)
+
+val BackgroundDark = Color(0xFF18181B)
