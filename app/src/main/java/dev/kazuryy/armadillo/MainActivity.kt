@@ -1,8 +1,11 @@
 package dev.kazuryy.armadillo
 
+import android.app.Activity
+import android.net.VpnService
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.LaunchedEffect
@@ -13,6 +16,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.lifecycle.lifecycleScope
 import androidx.tv.material3.Text
 import dev.kazuryy.armadillo.ui.HomeScreen
 import dev.kazuryy.armadillo.ui.LoginFlow
@@ -28,6 +32,25 @@ import dev.kazuryy.armadillo.util.TunnelManager
 import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
+
+    private lateinit var tunnelManager: TunnelManager
+
+    private val vpnPermissionLauncher = registerForActivityResult(
+        ActivityResultContracts.StartActivityForResult()
+    ) { result ->
+        if (result.resultCode == Activity.RESULT_OK) {
+            lifecycleScope.launch { tunnelManager.connect() }
+        }
+    }
+
+    private fun requestConnect() {
+        val prepareIntent = VpnService.prepare(this)
+        if (prepareIntent != null) {
+            vpnPermissionLauncher.launch(prepareIntent)
+        } else {
+            lifecycleScope.launch { tunnelManager.connect() }
+        }
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -52,7 +75,7 @@ class MainActivity : ComponentActivity() {
             accountManager = accountManager,
             secretManager = secretManager
         )
-        val tunnelManager = TunnelManager.getInstance(
+        tunnelManager = TunnelManager.getInstance(
             context = applicationContext,
             authManager = authManager,
             accountManager = accountManager,
@@ -80,7 +103,7 @@ class MainActivity : ComponentActivity() {
                     when {
                         isInitializing -> Text("Loading...")
                         !isAuthenticated -> LoginFlow(authManager)
-                        else -> HomeScreen(authManager, tunnelManager)
+                        else -> HomeScreen(authManager, tunnelManager, onConnectRequested = ::requestConnect)
                     }
                 }
             }

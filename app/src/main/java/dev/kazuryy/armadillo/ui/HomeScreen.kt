@@ -13,11 +13,15 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -33,11 +37,16 @@ import dev.kazuryy.armadillo.util.TunnelManager
 import kotlinx.coroutines.launch
 
 @Composable
-fun HomeScreen(authManager: AuthManager, tunnelManager: TunnelManager) {
+fun HomeScreen(authManager: AuthManager, tunnelManager: TunnelManager, onConnectRequested: () -> Unit) {
     val tunnelState by tunnelManager.tunnelState.collectAsState()
     val currentUser by authManager.currentUser.collectAsState()
     val currentOrg by authManager.currentOrg.collectAsState()
     val scope = rememberCoroutineScope()
+    val connectButtonFocusRequester = remember { FocusRequester() }
+
+    LaunchedEffect(Unit) {
+        connectButtonFocusRequester.requestFocus()
+    }
 
     ArmadilloBackground(isActive = tunnelState.isFullyConnected) {
         Column(
@@ -78,13 +87,12 @@ fun HomeScreen(authManager: AuthManager, tunnelManager: TunnelManager) {
                 Spacer(modifier = Modifier.height(28.dp))
                 Button(
                     enabled = tunnelState.canEnable || tunnelState.canDisable,
+                    modifier = Modifier.focusRequester(connectButtonFocusRequester),
                     onClick = {
-                        scope.launch {
-                            if (tunnelState.isFullyConnected || tunnelState.canDisable) {
-                                tunnelManager.disconnect()
-                            } else {
-                                tunnelManager.connect()
-                            }
+                        if (tunnelState.isFullyConnected || tunnelState.canDisable) {
+                            scope.launch { tunnelManager.disconnect() }
+                        } else {
+                            onConnectRequested()
                         }
                     },
                     colors = ButtonDefaults.colors(
