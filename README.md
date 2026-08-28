@@ -8,7 +8,7 @@ This repo covers Android TV. Other Armadillo clients live in their own repos, se
 
 ## Status
 
-`./gradlew :tunnel:assembleDebug` and `:app:assembleDebug` both build successfully (verified on macOS/Apple Silicon). Not yet run on a device or emulator, and no automated tests exist yet. Android TV was chosen over Android mobile because Fossorial already publishes an [official Android client](https://github.com/fosrl/android) for phones/tablets; Android TV has no official client yet (per [fosrl discussion #3039](https://github.com/orgs/fosrl/discussions/3039), it's planned but not scheduled).
+Verified end-to-end on an Android TV emulator (API 36, arm64) against a live self-hosted Pangolin instance: Cloud/Self-Hosted login, device-auth QR flow, and a real WireGuard tunnel (connect, relay fallback, disconnect) all work. No automated tests exist yet. Android TV was chosen over Android mobile because Fossorial already publishes an [official Android client](https://github.com/fosrl/android) for phones/tablets; Android TV has no official client yet (per [fosrl discussion #3039](https://github.com/orgs/fosrl/discussions/3039), it's planned but not scheduled).
 
 The tunnel core (`:tunnel` module) and business logic (`util/` package) are ported near-verbatim from `fosrl/android`, since that part is platform-agnostic and doesn't need reinventing. The UI is new, built for D-pad navigation with Compose for TV instead of the phone-oriented Activities/fragments the upstream app uses.
 
@@ -17,7 +17,7 @@ The tunnel core (`:tunnel` module) and business logic (`util/` package) are port
 - Kotlin, Jetpack Compose for TV (`androidx.tv:tv-material`)
 - WireGuard tunnel via Pangolin's `olm` core, compiled to a native `.so` and driven through a `VpnService` backend (`:tunnel` module, ported from `fosrl/android`)
 - Device-code + QR sign-in flow (ZXing for QR generation), reusing `AuthManager`'s existing device-auth polling logic
-- Play Store distribution (planned)
+- Distributed as a signed APK via GitHub Releases with in-app update checks, not the Play Store (a VpnService app requires a Play Console Organization account, which needs a D-U-N-S number, disproportionate for a hobby project)
 
 ## Building
 
@@ -33,6 +33,21 @@ The `:tunnel` module's native build (`tunnel/tools/libpangolin-go/Makefile`) dow
 ./gradlew :tunnel:assembleDebug
 ./gradlew :app:assembleDebug
 ```
+
+## Distribution & updates
+
+No Play Store: publishing a `VpnService` app requires a Google Play Console **Organization** account (needs a D-U-N-S number), not the free Personal account. Instead, releases are plain signed APKs attached to [GitHub Releases](https://github.com/Kazuryy/armadillo-android/releases), and the app checks `https://api.github.com/repos/Kazuryy/armadillo-android/releases/latest` on launch (`util/UpdateChecker.kt`) to notify about and install new versions in-app (`util/UpdateInstaller.kt`).
+
+To cut a release:
+1. Bump `versionCode`/`versionName` in `app/build.gradle.kts`, commit
+2. `git tag vX.Y.Z && git push origin vX.Y.Z`
+3. The `.github/workflows/release.yml` workflow builds a signed release APK and attaches it to a GitHub Release named after the tag as `armadillo-android.apk` (the fixed filename the in-app checker looks for)
+
+Requires four repo secrets for CI signing (`Settings → Secrets and variables → Actions`):
+- `ANDROID_KEYSTORE_BASE64`: `base64 -i release.jks`
+- `ANDROID_KEYSTORE_PASSWORD`, `ANDROID_KEY_PASSWORD`, `ANDROID_KEY_ALIAS`
+
+The signing keystore itself is never committed; only its base64 form lives in GitHub Secrets.
 
 ## Project origin
 

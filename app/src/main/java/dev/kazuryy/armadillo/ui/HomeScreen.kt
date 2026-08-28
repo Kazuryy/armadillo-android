@@ -16,24 +16,31 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.tv.material3.Button
 import androidx.tv.material3.ButtonDefaults
 import androidx.tv.material3.Text
+import dev.kazuryy.armadillo.BuildConfig
 import dev.kazuryy.armadillo.ui.theme.BrandOrange
 import dev.kazuryy.armadillo.ui.theme.CardBackground
 import dev.kazuryy.armadillo.ui.theme.SecondaryText
 import dev.kazuryy.armadillo.util.AuthManager
 import dev.kazuryy.armadillo.util.TunnelManager
+import dev.kazuryy.armadillo.util.UpdateChecker
+import dev.kazuryy.armadillo.util.UpdateInfo
+import dev.kazuryy.armadillo.util.UpdateInstaller
 import kotlinx.coroutines.launch
 
 @Composable
@@ -42,10 +49,15 @@ fun HomeScreen(authManager: AuthManager, tunnelManager: TunnelManager, onConnect
     val currentUser by authManager.currentUser.collectAsState()
     val currentOrg by authManager.currentOrg.collectAsState()
     val scope = rememberCoroutineScope()
+    val context = LocalContext.current
     val connectButtonFocusRequester = remember { FocusRequester() }
+
+    var updateInfo by remember { mutableStateOf<UpdateInfo?>(null) }
+    var isInstallingUpdate by remember { mutableStateOf(false) }
 
     LaunchedEffect(Unit) {
         connectButtonFocusRequester.requestFocus()
+        updateInfo = UpdateChecker().checkForUpdate(BuildConfig.VERSION_NAME)
     }
 
     ArmadilloBackground(isActive = tunnelState.isFullyConnected) {
@@ -54,6 +66,32 @@ fun HomeScreen(authManager: AuthManager, tunnelManager: TunnelManager, onConnect
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center
         ) {
+            updateInfo?.let { info ->
+                UpdateBanner(
+                    updateInfo = info,
+                    isInstalling = isInstallingUpdate,
+                    onInstallClick = {
+                        isInstallingUpdate = true
+                        scope.launch {
+                            val installer = UpdateInstaller()
+                            val unknownSourcesIntent = installer.unknownSourcesIntentIfNeeded(context)
+                            if (unknownSourcesIntent != null) {
+                                context.startActivity(unknownSourcesIntent)
+                                isInstallingUpdate = false
+                                return@launch
+                            }
+                            try {
+                                val apkFile = installer.downloadApk(context, info.downloadUrl)
+                                context.startActivity(installer.installIntent(context, apkFile))
+                            } finally {
+                                isInstallingUpdate = false
+                            }
+                        }
+                    }
+                )
+                Spacer(modifier = Modifier.height(24.dp))
+            }
+
             Text(text = "Armadillo", fontSize = 36.sp, fontWeight = FontWeight.Bold)
             Spacer(modifier = Modifier.height(8.dp))
             Row {
