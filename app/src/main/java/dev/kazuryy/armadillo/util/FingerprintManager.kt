@@ -16,7 +16,7 @@ class FingerprintManager(
     private val context: Context,
     private val socketManager: SocketManager,
     private val collector: AndroidFingerprintCollector
-) : PangolinApplication.StandbyListener {
+) : ArmadilloApplication.StandbyListener {
     private val tag = "FingerprintManager"
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private var job: Job? = null
@@ -33,7 +33,7 @@ class FingerprintManager(
         Log.d(tag, "Starting fingerprint polling (interval: ${intervalSeconds}s)")
         
         // Register for standby notifications
-        (context.applicationContext as? PangolinApplication)?.registerStandbyListener(this)
+        (context.applicationContext as? ArmadilloApplication)?.registerStandbyListener(this)
 
         job = scope.launch {
             while (isActive) {
@@ -53,7 +53,7 @@ class FingerprintManager(
         Log.d(tag, "Stopping fingerprint polling")
         
         // Unregister from standby notifications
-        (context.applicationContext as? PangolinApplication)?.unregisterStandbyListener(this)
+        (context.applicationContext as? ArmadilloApplication)?.unregisterStandbyListener(this)
         
         job?.cancel()
         job = null

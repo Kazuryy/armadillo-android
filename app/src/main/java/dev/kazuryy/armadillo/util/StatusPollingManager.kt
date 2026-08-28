@@ -21,7 +21,7 @@ class StatusPollingManager(
     private val context: Context,
     private val socketManager: SocketManager,
     private val pollingIntervalMs: Long = 3000L
-) : PangolinApplication.StandbyListener {
+) : ArmadilloApplication.StandbyListener {
     private val tag = "StatusPollingManager"
     private val json = Json { 
         ignoreUnknownKeys = true
@@ -71,7 +71,7 @@ class StatusPollingManager(
         _errorFlow.value = null
         
         // Register for standby notifications
-        (context.applicationContext as? PangolinApplication)?.registerStandbyListener(this)
+        (context.applicationContext as? ArmadilloApplication)?.registerStandbyListener(this)
         
         // Start the polling coroutine
         pollingJob = coroutineScope.launch {
@@ -196,7 +196,7 @@ class StatusPollingManager(
         isPaused = false
         
         // Unregister from standby notifications
-        (context.applicationContext as? PangolinApplication)?.unregisterStandbyListener(this)
+        (context.applicationContext as? ArmadilloApplication)?.unregisterStandbyListener(this)
         
         // Cancel the polling job
         pollingJob?.cancel()
