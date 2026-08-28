@@ -8,7 +8,7 @@ This repo covers Android TV. Other Armadillo clients live in their own repos, se
 
 ## Status
 
-Initial scaffold in place, not yet built or run on a device/emulator. Android TV was chosen over Android mobile because Fossorial already publishes an [official Android client](https://github.com/fosrl/android) for phones/tablets; Android TV has no official client yet (per [fosrl discussion #3039](https://github.com/orgs/fosrl/discussions/3039), it's planned but not scheduled).
+`./gradlew :tunnel:assembleDebug` and `:app:assembleDebug` both build successfully (verified on macOS/Apple Silicon). Not yet run on a device or emulator, and no automated tests exist yet. Android TV was chosen over Android mobile because Fossorial already publishes an [official Android client](https://github.com/fosrl/android) for phones/tablets; Android TV has no official client yet (per [fosrl discussion #3039](https://github.com/orgs/fosrl/discussions/3039), it's planned but not scheduled).
 
 The tunnel core (`:tunnel` module) and business logic (`util/` package) are ported near-verbatim from `fosrl/android`, since that part is platform-agnostic and doesn't need reinventing. The UI is new, built for D-pad navigation with Compose for TV instead of the phone-oriented Activities/fragments the upstream app uses.
 
@@ -21,7 +21,13 @@ The tunnel core (`:tunnel` module) and business logic (`util/` package) are port
 
 ## Building
 
-Requires Android Studio or the Android SDK/NDK (`ndkVersion = 29.0.14206865` in `tunnel/build.gradle.kts`) plus a Go toolchain for the `:tunnel` module's native build. Not yet verified end-to-end; the project has not been built on a machine with the Android SDK installed.
+Requires Android Studio (or the Android SDK/cmdline-tools) with:
+- SDK Platform 36, Build-Tools 36.0.0, Platform-Tools
+- NDK `29.0.14206865` and CMake `3.22.1` (exact versions pinned in `tunnel/build.gradle.kts`)
+
+The `:tunnel` module's native build (`tunnel/tools/libpangolin-go/Makefile`) downloads its own pinned Go toolchain and expects a Linux-style userland. On macOS you need two GNU-compatible tools ahead of the BSD ones on `PATH`:
+- `flock`: not present on macOS by default, `brew install flock`
+- `sha256sum`: macOS's `/sbin/sha256sum` doesn't support the `-c` piped-checksum syntax the Makefile uses. Put a shim ahead of it on `PATH`, e.g. `/opt/homebrew/bin/sha256sum` containing `exec shasum -a 256 "$@"`.
 
 ```bash
 ./gradlew :tunnel:assembleDebug
