@@ -198,7 +198,7 @@ class AuthManager(
             val startResponse = apiClient.startDeviceAuth(appName, deviceName, hostnameOverride)
 
             val code = startResponse.code
-            val loginURL = "$hostname/auth/device-web-auth/$code"
+            val loginURL = "$hostname/auth/login/device"
 
             _deviceAuthCode.value = code
             _deviceAuthLoginURL.value = loginURL
@@ -323,7 +323,7 @@ class AuthManager(
     fun setDeviceAuthCode(code: String?) {
         _deviceAuthCode.value = code
         if (code != null) {
-            _deviceAuthLoginURL.value = "${apiClient.baseURL}/auth/device-web-auth/$code"
+            _deviceAuthLoginURL.value = "${apiClient.baseURL}/auth/login/device"
         } else {
             _deviceAuthLoginURL.value = null
         }

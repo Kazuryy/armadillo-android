@@ -14,7 +14,6 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -27,9 +26,10 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.text.font.FontFamily
@@ -45,148 +45,110 @@ import dev.kazuryy.armadillo.ui.theme.CardBackground
 import dev.kazuryy.armadillo.ui.theme.SecondaryText
 import dev.kazuryy.armadillo.util.AuthManager
 import dev.kazuryy.armadillo.util.generateQrCodeBitmap
-import kotlinx.coroutines.launch
 
 @Composable
-fun DeviceAuthScreen(authManager: AuthManager) {
+fun DeviceAuthScreen(authManager: AuthManager, onCancel: () -> Unit) {
     val code by authManager.deviceAuthCode.collectAsState()
     val loginURL by authManager.deviceAuthLoginURL.collectAsState()
-    val inProgress by authManager.isDeviceAuthInProgress.collectAsState()
     val errorMessage by authManager.errorMessage.collectAsState()
-    val scope = rememberCoroutineScope()
+    val cancelFocusRequester = remember { FocusRequester() }
 
     LaunchedEffect(Unit) {
-        authManager.loginWithDeviceAuth()
+        cancelFocusRequester.requestFocus()
     }
 
-    ArmadilloBackground(isActive = code != null) {
-        Column(
-            modifier = Modifier.fillMaxSize().padding(horizontal = 64.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.Center
+    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+        Row(
+            modifier = Modifier
+                .background(CardBackground, RoundedCornerShape(20.dp))
+                .padding(32.dp),
+            verticalAlignment = Alignment.Top
         ) {
-            Text(
-                text = "Armadillo",
-                fontSize = 44.sp,
-                fontWeight = FontWeight.Bold
-            )
-            if (code == null) {
-                Spacer(modifier = Modifier.height(8.dp))
+            val url = loginURL
+            val qrTarget = if (url != null && code != null) {
+                "$url?code=${code!!.replace("-", "")}"
+            } else null
+            if (qrTarget != null) {
+                val qrBitmap = remember(qrTarget) { generateQrCodeBitmap(qrTarget) }
+                Image(
+                    bitmap = qrBitmap.asImageBitmap(),
+                    contentDescription = "QR code to $qrTarget",
+                    modifier = Modifier
+                        .size(220.dp)
+                        .background(Color.White, RoundedCornerShape(12.dp))
+                        .padding(18.dp)
+                )
+            } else {
+                Box(
+                    modifier = Modifier
+                        .size(220.dp)
+                        .background(Color.White, RoundedCornerShape(12.dp)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Spinner(color = BrandOrange, size = 32.dp)
+                }
+            }
+
+            Spacer(modifier = Modifier.width(48.dp))
+
+            Column(
+                modifier = Modifier.width(420.dp),
+                horizontalAlignment = Alignment.Start
+            ) {
+                Text(text = "Scan to Sign In", fontSize = 28.sp, fontWeight = FontWeight.Bold)
+                Spacer(modifier = Modifier.height(16.dp))
                 Text(
-                    text = "For Pangolin, the zero trust remote access platform.",
-                    fontSize = 16.sp,
+                    text = "Point your phone's camera at the code, or open the address below and type in the code shown.",
+                    fontSize = 15.sp,
                     color = SecondaryText
                 )
-            }
-
-            Spacer(modifier = Modifier.height(32.dp))
-
-            Row(
-                modifier = Modifier
-                    .background(CardBackground, RoundedCornerShape(20.dp))
-                    .padding(32.dp),
-                verticalAlignment = Alignment.Top
-            ) {
-                val url = loginURL
-                if (url != null) {
-                    val qrBitmap = remember(url) { generateQrCodeBitmap(url) }
-                    Image(
-                        bitmap = qrBitmap.asImageBitmap(),
-                        contentDescription = "QR code to $url",
-                        modifier = Modifier
-                            .size(220.dp)
-                            .background(Color.White, RoundedCornerShape(12.dp))
-                            .padding(18.dp)
-                    )
-                } else {
-                    Box(
-                        modifier = Modifier
-                            .size(220.dp)
-                            .background(Color.White, RoundedCornerShape(12.dp)),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Spinner(color = BrandOrange, size = 32.dp)
-                    }
-                }
-
-                Spacer(modifier = Modifier.width(48.dp))
-
-                Column(
-                    modifier = Modifier.width(420.dp),
-                    horizontalAlignment = Alignment.Start
-                ) {
-                    Text(
-                        text = "Scan to Sign In",
-                        fontSize = 28.sp,
-                        fontWeight = FontWeight.Bold
-                    )
+                loginURL?.let {
                     Spacer(modifier = Modifier.height(16.dp))
+                    Text(text = it, fontSize = 15.sp, fontFamily = FontFamily.Monospace, color = SecondaryText)
+                }
+                code?.let {
+                    Spacer(modifier = Modifier.height(20.dp))
                     Text(
-                        text = "Point your phone's camera at the code, or open the address below and type in the code shown.",
-                        fontSize = 15.sp,
-                        color = SecondaryText
+                        text = it,
+                        fontSize = 36.sp,
+                        fontWeight = FontWeight.Bold,
+                        fontFamily = FontFamily.Monospace,
+                        letterSpacing = 3.sp,
+                        color = Color.Black,
+                        modifier = Modifier
+                            .background(BrandOrange, CircleShape)
+                            .padding(horizontal = 24.dp, vertical = 10.dp)
                     )
-                    loginURL?.let {
-                        Spacer(modifier = Modifier.height(16.dp))
-                        Text(
-                            text = it,
-                            fontSize = 15.sp,
-                            fontFamily = FontFamily.Monospace,
-                            color = SecondaryText
-                        )
-                    }
-                    code?.let {
-                        Spacer(modifier = Modifier.height(20.dp))
-                        Text(
-                            text = it,
-                            fontSize = 36.sp,
-                            fontWeight = FontWeight.Bold,
-                            fontFamily = FontFamily.Monospace,
-                            letterSpacing = 3.sp,
-                            color = Color.Black,
-                            modifier = Modifier
-                                .background(BrandOrange, CircleShape)
-                                .padding(horizontal = 24.dp, vertical = 10.dp)
-                        )
-                    }
                 }
             }
+        }
 
-            Spacer(modifier = Modifier.height(24.dp))
+        Spacer(modifier = Modifier.height(24.dp))
 
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Spinner(color = BrandOrange, size = 18.dp)
+                Spacer(modifier = Modifier.width(10.dp))
+                Text(text = "Waiting for confirmation…", fontSize = 15.sp, color = SecondaryText)
+            }
+
+            errorMessage?.let {
+                Text(text = it, color = MaterialTheme.colorScheme.error, fontSize = 14.sp)
+            }
+
+            Button(
+                onClick = onCancel,
+                modifier = Modifier.focusRequester(cancelFocusRequester),
+                colors = ButtonDefaults.colors(
+                    containerColor = Color.Transparent,
+                    contentColor = SecondaryText
+                )
             ) {
-                if (code != null) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Spinner(color = BrandOrange, size = 18.dp)
-                        Spacer(modifier = Modifier.width(10.dp))
-                        Text(text = "Waiting for confirmation…", fontSize = 15.sp, color = SecondaryText)
-                    }
-                } else if (inProgress) {
-                    Text(text = "Requesting device code...", fontSize = 15.sp, color = SecondaryText)
-                } else {
-                    Spacer(modifier = Modifier)
-                }
-
-                errorMessage?.let {
-                    Text(text = it, color = MaterialTheme.colorScheme.error, fontSize = 14.sp)
-                }
-
-                Button(
-                    onClick = {
-                        authManager.cancelDeviceAuth()
-                        scope.launch { authManager.loginWithDeviceAuth() }
-                    },
-                    colors = ButtonDefaults.colors(
-                        containerColor = Color.Transparent,
-                        contentColor = SecondaryText
-                    )
-                ) {
-                    Text("Get a new code")
-                }
+                Text("Cancel")
             }
         }
     }

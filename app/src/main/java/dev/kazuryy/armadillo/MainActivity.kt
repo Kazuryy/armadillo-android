@@ -14,8 +14,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.tv.material3.Text
-import dev.kazuryy.armadillo.ui.DeviceAuthScreen
 import dev.kazuryy.armadillo.ui.HomeScreen
+import dev.kazuryy.armadillo.ui.LoginFlow
 import dev.kazuryy.armadillo.ui.theme.ArmadilloTheme
 import dev.kazuryy.armadillo.util.AccountManager
 import dev.kazuryy.armadillo.util.AndroidFingerprintCollector
@@ -79,7 +79,7 @@ class MainActivity : ComponentActivity() {
                 Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                     when {
                         isInitializing -> Text("Loading...")
-                        !isAuthenticated -> DeviceAuthScreen(authManager)
+                        !isAuthenticated -> LoginFlow(authManager)
                         else -> HomeScreen(authManager, tunnelManager)
                     }
                 }
