@@ -6,6 +6,7 @@
 *.iml
 .gradle/
 local.properties
+keystore.properties
 .cxx/
 
 # Build outputs
