@@ -2,12 +2,7 @@ package dev.kazuryy.armadillo.ui.theme
 
 import androidx.compose.ui.graphics.Color
 
-val PrimaryDark = Color(0xFFF36117)
-val SecondaryDark = Color(0xFFFF9800)
-val TertiaryDark = Color(0xFFFFC107)
-
-val PrimaryLight = Color(0xFFFF5722)
-val SecondaryLight = Color(0xFFFF9800)
-val TertiaryLight = Color(0xFFFFC107)
-
+val BrandOrange = Color(0xFFF36118)
 val BackgroundDark = Color(0xFF18181B)
+val CardBackground = Color(0x0FFFFFFF)
+val SecondaryText = Color(0xFFA1A1A6)
