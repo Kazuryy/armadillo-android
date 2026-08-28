@@ -1,0 +1,20 @@
+# macOS
+.DS_Store
+
+# Android Studio / IntelliJ
+.idea/
+*.iml
+.gradle/
+local.properties
+.cxx/
+
+# Build outputs
+build/
+*/build/
+captures/
+.externalNativeBuild/
+
+# Go (olm core, if vendored/built locally)
+*.aar
+*.jar
+!gradle/wrapper/gradle-wrapper.jar
