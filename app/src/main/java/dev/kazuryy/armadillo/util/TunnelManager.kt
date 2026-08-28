@@ -1,0 +1,524 @@
+package dev.kazuryy.armadillo.util
+
+import android.content.Context
+import android.util.Log
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharedFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.isActive
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import dev.kazuryy.armadillo.tunnel.GoBackend
+import dev.kazuryy.armadillo.tunnel.InitConfig
+import dev.kazuryy.armadillo.tunnel.Tunnel
+import dev.kazuryy.armadillo.tunnel.TunnelConfig
+import java.io.File
+
+/**
+ * Manages VPN tunnel state, connection, and lifecycle across the app.
+ * This is a singleton that persists tunnel state across activity changes.
+ */
+class TunnelManager private constructor(
+    private val context: Context,
+    private val authManager: AuthManager,
+    private val accountManager: AccountManager,
+    private val secretManager: SecretManager,
+    private val configManager: ConfigManager,
+    private val socketManager: SocketManager,
+    private val fingerprintManager: FingerprintManager,
+) {
+    private val tag = "TunnelManager"
+
+    // Coroutine scope for tunnel operations
+    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
+
+    // Go backend instance
+    private var goBackend: GoBackend? = null
+
+    // Tunnel instance - must be reused for disconnect to work
+    private var tunnel: Tunnel? = null
+
+    // Socket polling
+    private var statusPollingManager: StatusPollingManager? = null
+    private var pollingJob: Job? = null
+
+    // Tunnel state
+    private val _tunnelState = MutableStateFlow(TunnelState())
+    val tunnelState: StateFlow<TunnelState> = _tunnelState.asStateFlow()
+
+    // Connection status from socket
+    private val _connectionStatus = MutableStateFlow<SocketStatusResponse?>(null)
+    val connectionStatus: StateFlow<SocketStatusResponse?> = _connectionStatus.asStateFlow()
+
+    // OLM error flow - exposes errors from status polling that need user attention
+    val olmErrorFlow: SharedFlow<OlmError>?
+        get() = statusPollingManager?.olmErrorFlow
+
+    init {
+        goBackend = GoBackend(context)
+        statusPollingManager = StatusPollingManager(context, socketManager)
+
+        // Observe status updates
+        // Note: Power state monitoring is now handled in the VpnService (GoBackend.java)
+        // to ensure it continues even if the app is killed
+        scope.launch {
+            statusPollingManager?.statusFlow?.collect { status ->
+                if (status != null) {
+                    _connectionStatus.value = status
+                    updateConnectionStatusFromSocket(status)
+                    
+                    // Check for session-expired error codes
+                    status.error?.let { olmError ->
+                        if (isSessionExpiredError(olmError.code)) {
+                            Log.w(tag, "Session expired error detected: ${olmError.code} - ${olmError.message}")
+                            authManager.markSessionExpired()
+                        }
+                    }
+                    
+                    // Stop tunnel if an error is detected from the API or if terminated
+                    // Only disconnect if the service is currently running to avoid duplicate calls
+                    val currentState = _tunnelState.value
+                    if ((status.error != null || status.terminated) && currentState.isServiceRunning) {
+                        val reason = when {
+                            status.error != null -> "API error: ${status.error.message}"
+                            status.terminated -> "Connection terminated"
+                            else -> "Unknown"
+                        }
+                        Log.w(tag, "Stopping tunnel due to: $reason")
+                        // Small delay to allow OLM error to be emitted and shown in UI before stopping
+                        delay(100)
+                        disconnect()
+                    }
+                }
+            }
+        }
+    }
+
+    /**
+     * Check if an error code indicates a session-expired condition
+     */
+    private fun isSessionExpiredError(errorCode: String): Boolean {
+        return when (errorCode.uppercase()) {
+            "UNAUTHORIZED",
+            "SESSION_EXPIRED",
+            "ORG_ACCESS_POLICY_SESSION_EXPIRED",
+            "INVALID_USER_SESSION",
+            "USER_ID_NOT_FOUND" -> true
+            else -> false
+        }
+    }
+
+    /**
+     * Update internal state based on socket status response
+     */
+    private fun updateConnectionStatusFromSocket(status: SocketStatusResponse) {
+        val currentState = _tunnelState.value
+
+        // Only update if service is running
+        if (!currentState.isServiceRunning) {
+            return
+        }
+
+        val isConnected = status.connected && status.registered == true
+        val isRegistered = status.registered == true
+
+        _tunnelState.value = currentState.copy(
+            isSocketConnected = status.connected,
+            isRegistered = isRegistered,
+            isConnecting = !isConnected && status.connected,
+            statusMessage = determineStatusMessage(status),
+            errorMessage = if (status.terminated) "Connection terminated" else null
+        )
+    }
+
+    /**
+     * Determine human-readable status message from socket response
+     */
+    private fun determineStatusMessage(status: SocketStatusResponse): String {
+        return when {
+            status.terminated -> "Disconnected"
+            !status.connected -> "Connecting..."
+            status.registered != true -> "Registering..."
+            status.connected && status.registered == true -> "Connected"
+            else -> "Unknown"
+        }
+    }
+
+    /**
+     * Connect to VPN tunnel
+     */
+    suspend fun connect() {
+        Log.i(tag, "Starting tunnel connection")
+
+        updateState(_tunnelState.value.copy(
+            isConnecting = true,
+            isServiceRunning = false,
+            isSocketConnected = false,
+            isRegistered = false,
+            statusMessage = "Starting VPN service...",
+            errorMessage = null
+        ))
+
+        try {
+            // Get current user and credentials
+            val activeAccount = accountManager.activeAccount
+            if (activeAccount == null) {
+                throw Exception("No active account")
+            }
+
+            val userId = activeAccount.userId
+            val orgId = activeAccount.orgId
+
+            Log.i(tag, "=== CONNECT: Starting connection for user=$userId, org=$orgId ===")
+            Log.i(tag, "Active account details: userId=${activeAccount.userId}, orgId=${activeAccount.orgId}")
+
+            if (orgId.isEmpty()) {
+                throw Exception("No organization selected")
+            }
+
+            // Get user session token
+            val userToken = secretManager.getSessionToken(userId)
+            if (userToken == null) {
+                throw Exception("No session token found")
+            }
+
+            // Ensure OLM credentials exist
+            authManager.ensureOlmCredentials(userId)
+
+            // Get OLM credentials
+            val olmId = secretManager.getOlmId(userId)
+            val olmSecret = secretManager.getOlmSecret(userId)
+
+            if (olmId == null || olmSecret == null) {
+                throw Exception("Failed to retrieve OLM credentials")
+            }
+
+            Log.i(tag, "Using OLM credentials for user $userId, org $orgId, olmId=$olmId")
+            Log.i(tag, "About to build TunnelConfig with orgId=$orgId")
+
+            // Get configuration
+            val config = configManager.config.value
+            val primaryDNS = config.primaryDNSServer
+            val secondaryDNS = config.secondaryDNSServer
+            val overrideDns = config.dnsOverrideEnabled ?: false
+            val tunnelDns = config.dnsTunnelEnabled ?: false
+            val logCollectionEnabled = config.logCollectionEnabled ?: false
+            val mtu = config.mtu ?: 1280
+
+            Log.d(tag, "DNS Configuration - overrideDns: $overrideDns, tunnelDns: $tunnelDns, primaryDNS: $primaryDNS, secondaryDNS: $secondaryDNS")
+            Log.d(tag, "Log collection enabled: $logCollectionEnabled")
+
+            val fpCollector = AndroidFingerprintCollector(context)
+            val initialFingerprint = fpCollector.gatherFingerprintInfo()
+            val initialPostures = fpCollector.gatherPostureChecks()
+
+            // Start tunnel
+            withContext(Dispatchers.IO) {
+                val initConfigBuilder = InitConfig.Builder()
+                    .setEnableAPI(true)
+                    .setLogLevel("debug")
+                    .setAgent("Armadillo Android TV")
+                    .setVersion(context.packageManager.getPackageInfo(context.packageName, 0).versionName ?: "unknown")
+                    .setSocketPath(File(context.filesDir, "armadillo.sock").absolutePath)
+
+                if (logCollectionEnabled) {
+                    initConfigBuilder.setLogFilePath(File(context.filesDir, "armadillo.log").absolutePath)
+                }
+                
+                val initConfig = initConfigBuilder.build()
+
+                // Note: when this is left empty (no custom DNS configured), olm's
+                // SystemDnsMonitor (started by GoBackend before the tunnel comes up)
+                // detects and keeps the device's real DNS servers up to date instead.
+                // Passing a detected value here would be indistinguishable from an
+                // explicit user override and would stop it from being auto-updated.
+                val upstreamDns = mutableListOf<String>()
+                if (!primaryDNS.isNullOrBlank()) {
+                    upstreamDns.add("$primaryDNS:53")
+                }
+                if (!secondaryDNS.isNullOrBlank()) {
+                    upstreamDns.add("$secondaryDNS:53")
+                }
+
+                val tunnelConfig = TunnelConfig.Builder()
+                    .setEndpoint(activeAccount.hostname)
+                    .setId(olmId)
+                    .setSecret(olmSecret)
+                    .setUserToken(userToken)
+                    .setOrgId(orgId)
+                    .setMtu(mtu)
+                    .setUpstreamDNS(upstreamDns)
+                    .setPingIntervalSeconds(10)
+                    .setPingTimeoutSeconds(30)
+                    .setHolepunch(true)
+                    .setOverrideDNS(overrideDns)
+                    .setTunnelDNS(tunnelDns)
+                    .setFingerprint(initialFingerprint.toMap())
+                    .setPostures(initialPostures.toMap())
+                    .build()
+
+                Log.d(tag, "=== TUNNEL CONFIG: Starting tunnel with OLM ID: $olmId, Org ID: $orgId ===")
+                Log.d(tag, "Full tunnel config - endpoint: ${activeAccount.hostname}, mtu: 1280, dns: $primaryDNS")
+                // Create tunnel instance if not already created
+                if (tunnel == null) {
+                    tunnel = createTunnel()
+                }
+                goBackend?.setState(tunnel!!, Tunnel.State.UP, tunnelConfig, initConfig)
+            }
+
+            updateState(_tunnelState.value.copy(
+                isServiceRunning = true,
+                isConnecting = true,
+                statusMessage = "VPN service started, connecting..."
+            ))
+
+            // Start socket polling
+            startSocketPolling()
+
+            fingerprintManager.start()
+        } catch (e: Exception) {
+            Log.e(tag, "Failed to start tunnel", e)
+            updateState(_tunnelState.value.copy(
+                isServiceRunning = false,
+                isConnecting = false,
+                isSocketConnected = false,
+                isRegistered = false,
+                statusMessage = "Connection failed",
+                errorMessage = e.message ?: "Unknown error"
+            ))
+        }
+    }
+
+    /**
+     * Disconnect from VPN tunnel
+     */
+    suspend fun disconnect() {
+        Log.i(tag, "Stopping tunnel connection")
+
+        updateState(_tunnelState.value.copy(
+            statusMessage = "Disconnecting...",
+            isConnecting = false
+        ))
+
+        try {
+            fingerprintManager.stop()
+
+            stopSocketPolling()
+
+            withContext(Dispatchers.IO) {
+                // Use the same tunnel instance that was used for connect
+                if (tunnel != null) {
+                    goBackend?.setState(tunnel!!, Tunnel.State.DOWN, null, null)
+                } else {
+                    Log.w(tag, "No tunnel instance to disconnect")
+                }
+            }
+
+            updateState(TunnelState(
+                isServiceRunning = false,
+                isConnecting = false,
+                isSocketConnected = false,
+                isRegistered = false,
+                statusMessage = "Disconnected"
+            ))
+
+        } catch (e: Exception) {
+            Log.e(tag, "Failed to stop tunnel", e)
+            updateState(_tunnelState.value.copy(
+                statusMessage = "Disconnection failed",
+                errorMessage = e.message ?: "Unknown error"
+            ))
+        }
+    }
+
+    /**
+     * Switch to a different organization
+     */
+    suspend fun switchOrg(orgId: String) {
+        Log.i(tag, "Switching to organization: $orgId")
+
+        try {
+            val response = socketManager.switchOrg(orgId)
+            Log.i(tag, "Organization switched: ${response.status}")
+
+            // Update account manager
+            val activeAccount = accountManager.activeAccount
+            if (activeAccount != null) {
+                accountManager.setUserOrganization(activeAccount.userId, orgId)
+            }
+
+        } catch (e: Exception) {
+            Log.e(tag, "Failed to switch organization", e)
+        }
+    }
+
+    /**
+     * Start polling socket for status updates
+     */
+    private fun startSocketPolling() {
+        if (pollingJob?.isActive == true) {
+            Log.d(tag, "Socket polling already active")
+            return
+        }
+
+        statusPollingManager?.startPolling()
+
+        pollingJob = scope.launch {
+            while (isActive) {
+                delay(1000) // Check every second
+
+                val currentState = _tunnelState.value
+                if (!currentState.isServiceRunning) {
+                    // Service stopped, stop polling
+                    break
+                }
+            }
+        }
+
+        Log.d(tag, "Socket polling started")
+    }
+
+    /**
+     * Stop polling socket for status updates
+     */
+    private fun stopSocketPolling() {
+        statusPollingManager?.stopPolling()
+        pollingJob?.cancel()
+        pollingJob = null
+        Log.d(tag, "Socket polling stopped")
+    }
+
+    /**
+     * Pause status polling (called when entering low power mode)
+     */
+    fun pauseStatusPolling() {
+        statusPollingManager?.pausePolling()
+        Log.d(tag, "Status polling paused (low power mode)")
+    }
+
+    /**
+     * Resume status polling (called when exiting low power mode)
+     */
+    fun resumeStatusPolling() {
+        statusPollingManager?.resumePolling()
+        Log.d(tag, "Status polling resumed (normal power mode)")
+    }
+
+    /**
+     * Update tunnel state
+     */
+    private fun updateState(newState: TunnelState) {
+        _tunnelState.value = newState
+    }
+
+    /**
+     * Create a Tunnel instance for Go backend
+     */
+    private fun createTunnel(): Tunnel {
+        return object : Tunnel {
+            override fun getName(): String = "pangolin"
+
+            override fun onStateChange(newState: Tunnel.State) {
+                Log.d(tag, "Tunnel state changed to: $newState")
+                val isServiceUp = goBackend?.getState(this) == Tunnel.State.UP
+
+                if (!isServiceUp) {
+                    updateState(_tunnelState.value.copy(
+                        isServiceRunning = false,
+                        isConnecting = false,
+                        isSocketConnected = false,
+                        isRegistered = false,
+                        statusMessage = "Disconnected"
+                    ))
+                    stopSocketPolling()
+                }
+            }
+        }
+    }
+
+    /**
+     * Get current backend state
+     */
+    fun getCurrentState(): Tunnel.State? {
+        return if (tunnel != null) {
+            goBackend?.getState(tunnel!!)
+        } else {
+            Tunnel.State.DOWN
+        }
+    }
+
+    /**
+     * Clean up resources
+     */
+    fun cleanup() {
+        stopSocketPolling()
+        scope.cancel()
+    }
+
+    companion object {
+        @Volatile
+        private var instance: TunnelManager? = null
+
+        fun getInstance(
+            context: Context,
+            authManager: AuthManager,
+            accountManager: AccountManager,
+            secretManager: SecretManager,
+            configManager: ConfigManager,
+            socketManager: SocketManager,
+            fingerprintManager: FingerprintManager
+        ): TunnelManager {
+            return instance ?: synchronized(this) {
+                instance ?: TunnelManager(
+                    context.applicationContext,
+                    authManager,
+                    accountManager,
+                    secretManager,
+                    configManager,
+                    socketManager,
+                    fingerprintManager
+                ).also { instance = it }
+            }
+        }
+
+        fun getInstance(): TunnelManager? {
+            return instance
+        }
+    }
+}
+
+/**
+ * Represents the current state of the VPN tunnel
+ */
+data class TunnelState(
+    val isServiceRunning: Boolean = false,
+    val isConnecting: Boolean = false,
+    val isSocketConnected: Boolean = false,
+    val isRegistered: Boolean = false,
+    val statusMessage: String = "Disconnected",
+    val errorMessage: String? = null
+) {
+    val isFullyConnected: Boolean
+        get() = isServiceRunning && isSocketConnected && isRegistered && !isConnecting
+    
+    /**
+     * Can enable the tunnel only if fully disconnected and ready to connect
+     */
+    val canEnable: Boolean
+        get() = !isServiceRunning && !isConnecting && !isSocketConnected && !isRegistered
+    
+    /**
+     * Can disable the tunnel if:
+     * - Currently connected/connecting (to allow stopping a connection attempt)
+     * - Service is running (regardless of connection state)
+     */
+    val canDisable: Boolean
+        get() = isServiceRunning || isConnecting || isSocketConnected
+}

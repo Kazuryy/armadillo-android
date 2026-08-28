@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <application>
+	    <service
+	        android:name="dev.kazuryy.armadillo.tunnel.GoBackend$VpnService"
+	        android:permission="android.permission.BIND_VPN_SERVICE"
+	        android:exported="false">
+	        <intent-filter>
+	            <action android:name="android.net.VpnService" />
+	        </intent-filter>
+	        <meta-data
+	            android:name="android.net.VpnService.SUPPORTS_ALWAYS_ON"
+	            android:value="false" />
+	    </service>  
+    </application>
+
+</manifest>

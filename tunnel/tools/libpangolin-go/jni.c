@@ -1,0 +1,100 @@
+/* SPDX-License-Identifier: Apache-2.0
+ *
+ * Copyright © 2017-2021 Jason A. Donenfeld <Jason@zx2c4.com>. All Rights Reserved.
+ */
+
+#include <jni.h>
+#include <stdlib.h>
+#include <string.h>
+
+extern char *initOlm(char *configJSON);
+extern char *startTunnel(int fd, char *configJSON);
+extern char *addDevice(int fd);
+extern char *stopTunnel();
+extern long getNetworkSettingsVersion();
+extern char *getNetworkSettings();
+extern char *setPowerMode(char *mode);
+extern char *setSystemDNS(char *serversJSON);
+
+JNIEXPORT jstring JNICALL Java_dev_kazuryy_armadillo_tunnel_GoBackend_initOlm(JNIEnv *env, jclass c, jstring configJSON)
+{
+	const char *config_str = (*env)->GetStringUTFChars(env, configJSON, 0);
+	char *result = initOlm((char *)config_str);
+	(*env)->ReleaseStringUTFChars(env, configJSON, config_str);
+	if (!result)
+		return NULL;
+	jstring ret = (*env)->NewStringUTF(env, result);
+	free(result);
+	return ret;
+}
+
+JNIEXPORT jstring JNICALL Java_dev_kazuryy_armadillo_tunnel_GoBackend_startTunnel(JNIEnv *env, jclass c, jint fd, jstring configJSON)
+{
+	const char *config_str = (*env)->GetStringUTFChars(env, configJSON, 0);
+	char *result = startTunnel(fd, (char *)config_str);
+	(*env)->ReleaseStringUTFChars(env, configJSON, config_str);
+	if (!result)
+		return NULL;
+	jstring ret = (*env)->NewStringUTF(env, result);
+	free(result);
+	return ret;
+}
+
+JNIEXPORT jstring JNICALL Java_dev_kazuryy_armadillo_tunnel_GoBackend_addDevice(JNIEnv *env, jclass c, jint fd)
+{
+	char *result = addDevice(fd);
+	if (!result)
+		return NULL;
+	jstring ret = (*env)->NewStringUTF(env, result);
+	free(result);
+	return ret;
+}
+
+JNIEXPORT jstring JNICALL Java_dev_kazuryy_armadillo_tunnel_GoBackend_stopTunnel(JNIEnv *env, jclass c)
+{
+	char *result = stopTunnel();
+	if (!result)
+		return NULL;
+	jstring ret = (*env)->NewStringUTF(env, result);
+	free(result);
+	return ret;
+}
+
+JNIEXPORT jlong JNICALL Java_dev_kazuryy_armadillo_tunnel_GoBackend_getNetworkSettingsVersion(JNIEnv *env, jclass c)
+{
+	return (jlong)getNetworkSettingsVersion();
+}
+
+JNIEXPORT jstring JNICALL Java_dev_kazuryy_armadillo_tunnel_GoBackend_getNetworkSettings(JNIEnv *env, jclass c)
+{
+	char *result = getNetworkSettings();
+	if (!result)
+		return NULL;
+	jstring ret = (*env)->NewStringUTF(env, result);
+	free(result);
+	return ret;
+}
+
+JNIEXPORT jstring JNICALL Java_dev_kazuryy_armadillo_tunnel_GoBackend_nativeSetPowerMode(JNIEnv *env, jclass c, jstring mode)
+{
+	const char *mode_str = (*env)->GetStringUTFChars(env, mode, 0);
+	char *result = setPowerMode((char *)mode_str);
+	(*env)->ReleaseStringUTFChars(env, mode, mode_str);
+	if (!result)
+		return NULL;
+	jstring ret = (*env)->NewStringUTF(env, result);
+	free(result);
+	return ret;
+}
+
+JNIEXPORT jstring JNICALL Java_dev_kazuryy_armadillo_tunnel_GoBackend_setSystemDNS(JNIEnv *env, jclass c, jstring serversJSON)
+{
+	const char *servers_str = (*env)->GetStringUTFChars(env, serversJSON, 0);
+	char *result = setSystemDNS((char *)servers_str);
+	(*env)->ReleaseStringUTFChars(env, serversJSON, servers_str);
+	if (!result)
+		return NULL;
+	jstring ret = (*env)->NewStringUTF(env, result);
+	free(result);
+	return ret;
+}
