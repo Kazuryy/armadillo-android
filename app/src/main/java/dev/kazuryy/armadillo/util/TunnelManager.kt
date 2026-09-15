@@ -134,7 +134,8 @@ class TunnelManager private constructor(
             isRegistered = isRegistered,
             isConnecting = !isConnected && status.connected,
             statusMessage = determineStatusMessage(status),
-            errorMessage = if (status.terminated) "Connection terminated" else null
+            errorMessage = status.error?.message
+                ?: if (status.terminated) "Connection terminated" else null
         )
     }
 
@@ -302,6 +303,11 @@ class TunnelManager private constructor(
     suspend fun disconnect() {
         Log.i(tag, "Stopping tunnel connection")
 
+        // Preserve the disconnect reason (e.g. an API/terminate error already surfaced by the
+        // status collector) so it survives to the final "Disconnected" state below instead of
+        // being wiped by a bare TunnelState().
+        val disconnectReason = _tunnelState.value.errorMessage
+
         updateState(_tunnelState.value.copy(
             statusMessage = "Disconnecting...",
             isConnecting = false
@@ -326,7 +332,8 @@ class TunnelManager private constructor(
                 isConnecting = false,
                 isSocketConnected = false,
                 isRegistered = false,
-                statusMessage = "Disconnected"
+                statusMessage = "Disconnected",
+                errorMessage = disconnectReason
             ))
 
         } catch (e: Exception) {

@@ -31,7 +31,10 @@ class ConfigManager private constructor(context: Context) {
     private fun loadConfig(): Config {
         return try {
             Config(
-                dnsOverrideEnabled = prefs.getBoolean("overrideDns", false),
+                // DNS override defaults to on (matches Pangolin's Apple client): without it,
+                // private HTTP resources resolve via public DNS to a WAN address outside the
+                // tunnel's routes instead of Pangolin's internal resolver, and never connect.
+                dnsOverrideEnabled = prefs.getBoolean("overrideDns", true),
                 dnsTunnelEnabled = prefs.getBoolean("tunnelDns", false),
                 primaryDNSServer = prefs.getString("primaryDNSServer", null),
                 secondaryDNSServer = prefs.getString("secondaryDNSServer", null),
