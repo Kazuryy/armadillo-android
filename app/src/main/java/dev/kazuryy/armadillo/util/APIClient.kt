@@ -109,7 +109,8 @@ class APIClient(
         method: String,
         path: String,
         body: String? = null,
-        hostnameOverride: String? = null
+        hostnameOverride: String? = null,
+        tokenOverride: String? = null
     ): APIRawResponse = withContext(Dispatchers.IO) {
         val url = apiURL(path, hostnameOverride) ?: throw APIError.InvalidURL
 
@@ -121,7 +122,7 @@ class APIClient(
             .addHeader("User-Agent", agentName)
             .addHeader("X-CSRF-Token", csrfTokenValue)
 
-        sessionToken?.let { token ->
+        (tokenOverride ?: sessionToken)?.let { token ->
             requestBuilder.addHeader("Cookie", "$sessionCookieName=$token")
         }
 
@@ -162,7 +163,7 @@ class APIClient(
             throw APIError.HttpError(response.code, errorMessage)
         }
 
-        Log.d(tag, "Parsing response body: $bodyString")
+        Log.d(tag, "Parsing response (${bodyString.length} bytes)")
 
         if (bodyString.isEmpty() || bodyString == "{}") {
             if (T::class == EmptyResponse::class) {
@@ -245,6 +246,15 @@ class APIClient(
     suspend fun logout() {
         val response = makeRequest("POST", "/auth/logout", "")
         parseResponse<EmptyResponse>(response)
+    }
+
+    /**
+     * Ends the server session of a specific account, without touching this client's own token or
+     * base URL. A 401 here is not reported through [onUnauthorized]: the current session is fine.
+     */
+    suspend fun logoutSession(token: String, hostname: String): Boolean {
+        val response = makeRequest("POST", "/auth/logout", "", hostnameOverride = hostname, tokenOverride = token)
+        return response.isSuccessful
     }
 
     // MARK: - Server Info

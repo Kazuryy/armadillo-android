@@ -8,6 +8,15 @@ import androidx.security.crypto.MasterKey
 import java.io.File
 import java.security.KeyStore
 
+/**
+ * Keys of everything stored for [userId] (session token, OLM id, OLM secret...). Matching on the
+ * "-<userId>" suffix means a secret added later is wiped too, without updating a list.
+ */
+internal fun userSecretKeys(allKeys: Collection<String>, userId: String): List<String> {
+    if (userId.isBlank()) return emptyList()
+    return allKeys.filter { it.endsWith("-$userId") }
+}
+
 class SecretManager private constructor(context: Context) {
     private val tag = "SecretManager"
     private val prefsFileName = "armadillo_secrets"
@@ -87,6 +96,20 @@ class SecretManager private constructor(context: Context) {
 
     fun deleteSecret(key: String): Boolean {
         return sharedPreferences.edit().remove(key).commit()
+    }
+
+    /**
+     * Erases every secret stored for [userId], including the OLM secret that is enough on its own
+     * to open a tunnel as this user. Returns true only if nothing is left afterwards.
+     */
+    fun deleteAllSecrets(userId: String): Boolean {
+        val keys = userSecretKeys(sharedPreferences.all.keys, userId)
+        if (keys.isNotEmpty()) {
+            val editor = sharedPreferences.edit()
+            keys.forEach { editor.remove(it) }
+            editor.commit()
+        }
+        return userSecretKeys(sharedPreferences.all.keys, userId).isEmpty()
     }
 
     // MARK: - OLM Credentials

@@ -28,6 +28,8 @@ sealed class AuthError : Exception() {
 
 
 
+private const val SERVER_LOGOUT_TIMEOUT_MS = 5_000L
+
 class AuthManager(
     private val context: Context,
     val apiClient: APIClient,
@@ -77,6 +79,13 @@ class AuthManager(
     val isDeviceAuthInProgress: StateFlow<Boolean> = _isDeviceAuthInProgress.asStateFlow()
 
     private var deviceAuthJob: Job? = null
+
+    // Incremented each time a sign-in completes, so the UI can leave the "add account" screen
+    private val _loginCount = MutableStateFlow(0)
+    val loginCount: StateFlow<Int> = _loginCount.asStateFlow()
+
+    // Server-side logout runs here so a slow or unreachable server cannot block the local wipe
+    private val logoutScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
     init {
         // Set up API client unauthorized callback
@@ -333,6 +342,9 @@ class AuthManager(
      * Handle successful authentication from external source (used by DeviceAuthService)
      */
     suspend fun handleSuccessfulAuth(user: User, hostname: String, token: String) {
+        // Adding an account while another one is connected must not leave that tunnel running
+        stopTunnelIfRunning()
+
         _currentUser.value = user
 
         secretManager.saveSecret("session-token-${user.userId}", token)
@@ -384,6 +396,7 @@ class AuthManager(
         
         // Set authenticated flag last, after account is saved to disk
         _isAuthenticated.value = true
+        _loginCount.value += 1
     }
 
     fun updateServerStatus(isHealthy: Boolean) {
@@ -486,13 +499,7 @@ class AuthManager(
             }
 
             // Step 0: Disconnect tunnel if running
-            tunnelManager?.let { tm ->
-                val currentState = tm.tunnelState.value
-                if (currentState.isServiceRunning || currentState.isConnecting) {
-                    Log.i(tag, "Disconnecting tunnel before switching accounts")
-                    tm.disconnect()
-                }
-            }
+            stopTunnelIfRunning()
 
             // Step 1: Switch account locally first
             accountManager.setActiveUser(userId)
@@ -671,7 +678,7 @@ class AuthManager(
                         Log.d(tag, "OLM credentials verified successfully")
                         return
                     } else {
-                        Log.e(tag, "OLM mismatch - returned olmId: ${olm.olmId}, userId: ${olm.userId}, stored olmId: $olmIdString")
+                        Log.e(tag, "OLM mismatch between the server and the stored credentials for user $userId")
                         // Clear invalid credentials
                         secretManager.deleteOlmCredentials(userId)
                     }
@@ -727,63 +734,83 @@ class AuthManager(
         }
     }
 
+    /** Logs out the active account. Returns true if another account is still signed in. */
     suspend fun logout(): Boolean {
-        // Use activeAccount from AccountManager instead of _currentUser
-        // because _currentUser can be null when server is down
-        val activeAccount = accountManager.activeAccount
-        Log.i(tag, "=== LOGOUT STARTED ===")
-        Log.i(tag, "Active account being logged out: ${activeAccount?.userId} (${activeAccount?.email})")
-        Log.i(tag, "All accounts before logout: ${accountManager.accounts.keys}")
-        
-        if (activeAccount != null) {
-            // Try to logout from server, but don't fail if it doesn't work
-            try {
-                apiClient.logout()
-                Log.i(tag, "Successfully logged out from server")
-            } catch (e: Exception) {
-                Log.w(tag, "Failed to logout from server (server may be down): ${e.message}")
-                // Continue with local cleanup even if server logout fails
-            }
-            
-            // Always clean up local state, even if server logout failed
-            secretManager.deleteSecret("session-token-${activeAccount.userId}")
-            Log.i(tag, "Deleted session token for: ${activeAccount.userId}")
-            
-            accountManager.removeAccount(activeAccount.userId)
-            Log.i(tag, "Removed account from AccountManager: ${activeAccount.userId}")
+        val activeUserId = accountManager.activeUserId
+        if (activeUserId.isEmpty()) {
+            clearSessionState()
+            return false
         }
-        
-        // Pick the next available logged-in account
-        val remainingAccounts = accountManager.accounts
-        Log.i(tag, "Remaining accounts after removal: ${remainingAccounts.keys}")
-        
-        if (remainingAccounts.isNotEmpty()) {
-            val nextAccount = remainingAccounts.values.first()
-            Log.i(tag, "Switching to next available account: ${nextAccount.userId} (${nextAccount.email})")
+        return logoutAccount(activeUserId)
+    }
+
+    /**
+     * Logs one account out and erases everything that could be used to act as that user: the
+     * session token, the OLM id and secret (the secret alone is enough to open a tunnel), the
+     * account entry and the local logs. Ending the server session is best effort, the local wipe
+     * always happens. Returns true if another account is still signed in afterwards.
+     */
+    suspend fun logoutAccount(userId: String): Boolean {
+        val account = accountManager.accounts[userId] ?: return _isAuthenticated.value
+        val wasActive = accountManager.activeUserId == userId
+        Log.i(tag, "Logging out account $userId (active=$wasActive)")
+
+        // The tunnel always belongs to the active account, and holds its credentials in memory
+        if (wasActive) stopTunnelIfRunning()
+
+        // Read the token before wiping it, and use this account's own token and host
+        val token = secretManager.getSecret("session-token-$userId")
+        if (token != null) {
+            val serverLogout = logoutScope.async { apiClient.logoutSession(token, account.hostname) }
             try {
-                switchAccount(nextAccount.userId)
-                Log.i(tag, "=== LOGOUT COMPLETE - Switched to next account ===")
+                withTimeoutOrNull(SERVER_LOGOUT_TIMEOUT_MS) { serverLogout.await() }
+                    ?: Log.w(tag, "Server logout timed out, continuing with local cleanup")
+            } catch (e: Exception) {
+                Log.w(tag, "Server logout failed (${e.javaClass.simpleName}), continuing with local cleanup")
+            }
+        }
+
+        if (!secretManager.deleteAllSecrets(userId) && !secretManager.deleteAllSecrets(userId)) {
+            Log.e(tag, "Some secrets of $userId could not be erased")
+        }
+        accountManager.removeAccount(userId)
+
+        val tunnelRunning = tunnelManager?.tunnelState?.value?.let { it.isServiceRunning || it.isConnecting } == true
+        clearLocalTraces(context.filesDir, context.cacheDir, tunnelRunning)
+
+        if (!wasActive) return _isAuthenticated.value
+
+        val next = accountManager.accounts.values.firstOrNull {
+            secretManager.getSecret("session-token-${it.userId}") != null
+        }
+        if (next != null) {
+            try {
+                switchAccount(next.userId)
                 return true
             } catch (e: Exception) {
                 Log.e(tag, "Failed to switch to next account: ${e.message}", e)
-                // Clear everything if we can't switch to the next account
-                _currentUser.value = null
-                _isAuthenticated.value = false
-                _currentOrg.value = null
-                _organizations.value = emptyList()
-                apiClient.updateSessionToken(null)
-                Log.i(tag, "=== LOGOUT COMPLETE - Failed to switch, cleared all state ===")
-                return false
             }
-        } else {
-            // No more accounts available, clear everything
-            _currentUser.value = null
-            _isAuthenticated.value = false
-            _currentOrg.value = null
-            _organizations.value = emptyList()
-            apiClient.updateSessionToken(null)
-            Log.i(tag, "=== LOGOUT COMPLETE - No more accounts available ===")
-            return false
         }
+        clearSessionState()
+        return false
+    }
+
+    private suspend fun stopTunnelIfRunning() {
+        val tm = tunnelManager ?: return
+        val state = tm.tunnelState.value
+        if (state.isServiceRunning || state.isConnecting) {
+            Log.i(tag, "Disconnecting tunnel")
+            tm.disconnect()
+        }
+    }
+
+    private fun clearSessionState() {
+        _currentUser.value = null
+        _isAuthenticated.value = false
+        _currentOrg.value = null
+        _organizations.value = emptyList()
+        _serverInfo.value = null
+        _sessionExpired.value = false
+        apiClient.updateSessionToken(null)
     }
 }

@@ -201,7 +201,7 @@ class TunnelManager private constructor(
                 throw Exception("Failed to retrieve OLM credentials")
             }
 
-            Log.i(tag, "Using OLM credentials for user $userId, org $orgId, olmId=$olmId")
+            Log.i(tag, "Using OLM credentials for user $userId, org $orgId")
             Log.i(tag, "About to build TunnelConfig with orgId=$orgId")
 
             // Get configuration
@@ -265,7 +265,7 @@ class TunnelManager private constructor(
                     .setPostures(initialPostures.toMap())
                     .build()
 
-                Log.d(tag, "=== TUNNEL CONFIG: Starting tunnel with OLM ID: $olmId, Org ID: $orgId ===")
+                Log.d(tag, "=== TUNNEL CONFIG: Starting tunnel, Org ID: $orgId ===")
                 Log.d(tag, "Full tunnel config - endpoint: ${activeAccount.hostname}, mtu: 1280, dns: $primaryDNS")
                 // Create tunnel instance if not already created
                 if (tunnel == null) {
