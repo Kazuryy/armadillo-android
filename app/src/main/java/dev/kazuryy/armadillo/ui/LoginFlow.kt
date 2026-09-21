@@ -21,6 +21,7 @@ import androidx.compose.ui.unit.sp
 import androidx.tv.material3.Text
 import dev.kazuryy.armadillo.ui.theme.SecondaryText
 import dev.kazuryy.armadillo.util.AuthManager
+import dev.kazuryy.armadillo.util.normalizeHostname
 import kotlinx.coroutines.launch
 
 private enum class HostingOption { CLOUD, SELF_HOSTED }
@@ -87,14 +88,4 @@ fun LoginFlow(authManager: AuthManager) {
             }
         }
     }
-}
-
-private fun normalizeHostname(raw: String): String {
-    val trimmed = raw.trim()
-    if (trimmed.isEmpty()) return ""
-    var normalized = trimmed
-    if (!normalized.startsWith("http://") && !normalized.startsWith("https://")) {
-        normalized = "https://$normalized"
-    }
-    return normalized.trimEnd('/')
 }
