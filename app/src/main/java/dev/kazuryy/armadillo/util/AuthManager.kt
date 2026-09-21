@@ -337,7 +337,13 @@ class AuthManager(
 
         secretManager.saveSecret("session-token-${user.userId}", token)
 
-        ensureOlmCredentials(user.userId)
+        // A failure here is not fatal for login: TunnelManager.connect() calls
+        // ensureOlmCredentials again and shows the error on the home screen.
+        try {
+            ensureOlmCredentials(user.userId)
+        } catch (e: IllegalStateException) {
+            Log.w(tag, "OLM credentials not ready after login: ${e.message}")
+        }
 
         // Fetch server info
         try {
@@ -709,13 +715,14 @@ class AuthManager(
                 
                 if (!saved) {
                     Log.e(tag, "Failed to save OLM credentials")
-                    // TODO: Show error dialog to user
-                } else {
-                    Log.i(tag, "Created new OLM credentials for user $userId")
+                    throw IllegalStateException("Could not store this device's credentials securely")
                 }
+                Log.i(tag, "Created new OLM credentials for user $userId")
+            } catch (e: IllegalStateException) {
+                throw e
             } catch (e: Exception) {
                 Log.e(tag, "Failed to create OLM credentials: ${e.message}", e)
-                // TODO: Show error dialog to user
+                throw IllegalStateException("Could not register this device: ${e.message}", e)
             }
         }
     }
