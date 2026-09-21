@@ -4,12 +4,7 @@
 
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
-    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
-    <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
     <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
-    <uses-permission
-        android:name="android.permission.SYSTEM_ALERT_WINDOW"
-        android:minSdkVersion="34" />
 
     <uses-feature
         android:name="android.hardware.touchscreen"
@@ -18,16 +13,9 @@
         android:name="android.software.leanback"
         android:required="true" />
 
-    <permission
-        android:name="${applicationId}.permission.CONTROL_TUNNELS"
-        android:description="@string/permission_description"
-        android:icon="@mipmap/ic_launcher"
-        android:label="@string/permission_label"
-        android:protectionLevel="dangerous" />
-
     <application
         android:name=".ArmadilloApplication"
-        android:allowBackup="true"
+        android:allowBackup="false"
         android:banner="@drawable/tv_banner"
         android:dataExtractionRules="@xml/data_extraction_rules"
         android:fullBackupContent="@xml/backup_rules"

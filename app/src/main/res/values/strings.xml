@@ -1,5 +1,3 @@
 <resources>
     <string name="app_name">Armadillo</string>
-    <string name="permission_label">control Armadillo tunnels</string>
-    <string name="permission_description">control Armadillo tunnels, enabling and disabling tunnels at will.</string>
 </resources>
