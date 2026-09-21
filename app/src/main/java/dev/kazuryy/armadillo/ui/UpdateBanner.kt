@@ -2,12 +2,14 @@ package dev.kazuryy.armadillo.ui
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -19,6 +21,7 @@ import androidx.tv.material3.Text
 import dev.kazuryy.armadillo.ui.theme.BrandOrange
 import dev.kazuryy.armadillo.ui.theme.SecondaryText
 import dev.kazuryy.armadillo.util.UpdateInfo
+import dev.kazuryy.armadillo.util.releaseNotesSummary
 
 @Composable
 fun UpdateBanner(
@@ -27,21 +30,28 @@ fun UpdateBanner(
     errorMessage: String? = null,
     onInstallClick: () -> Unit
 ) {
-    Row(
+    val notes = remember(updateInfo.changelog) { releaseNotesSummary(updateInfo.changelog) }
+
+    Column(
         modifier = Modifier
             .background(BrandOrange.copy(alpha = 0.12f), RoundedCornerShape(14.dp))
             .padding(horizontal = 20.dp, vertical = 12.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(16.dp)
+        verticalArrangement = Arrangement.spacedBy(10.dp)
     ) {
-        Text(text = "Version ${updateInfo.versionName} available", fontSize = 14.sp, color = Color.White)
-        errorMessage?.let { Text(text = it, fontSize = 14.sp, color = SecondaryText) }
-        Button(
-            onClick = onInstallClick,
-            enabled = !isInstalling,
-            colors = ButtonDefaults.colors(containerColor = BrandOrange, contentColor = Color.Black)
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            Text(if (isInstalling) "Downloading..." else "Update")
+            Text(text = "Version ${updateInfo.versionName} available", fontSize = 14.sp, color = Color.White)
+            errorMessage?.let { Text(text = it, fontSize = 14.sp, color = SecondaryText) }
+            Button(
+                onClick = onInstallClick,
+                enabled = !isInstalling,
+                colors = ButtonDefaults.colors(containerColor = BrandOrange, contentColor = Color.Black)
+            ) {
+                Text(if (isInstalling) "Downloading..." else "Update")
+            }
         }
+        notes?.let { Text(text = it, fontSize = 13.sp, color = SecondaryText) }
     }
 }
