@@ -8,7 +8,7 @@ This repo covers Android TV. Other Armadillo clients live in their own repos, se
 
 ## Status
 
-Verified end-to-end on an Android TV emulator (API 36, arm64) against a live self-hosted Pangolin instance: Cloud/Self-Hosted login, device-auth QR flow, and a real WireGuard tunnel (connect, relay fallback, disconnect) all work. No automated tests exist yet. Android TV was chosen over Android mobile because Fossorial already publishes an [official Android client](https://github.com/fosrl/android) for phones/tablets; Android TV has no official client yet (per [fosrl discussion #3039](https://github.com/orgs/fosrl/discussions/3039), it's planned but not scheduled).
+Verified end-to-end on an Android TV emulator (API 36, arm64) against a live self-hosted Pangolin instance: Cloud/Self-Hosted login, device-auth QR flow, and a real WireGuard tunnel (connect, relay fallback, disconnect) all work. Unit tests cover the update verification and the account wipe logic. Android TV was chosen over Android mobile because Fossorial already publishes an [official Android client](https://github.com/fosrl/android) for phones/tablets; Android TV has no official client yet (per [fosrl discussion #3039](https://github.com/orgs/fosrl/discussions/3039), it's planned but not scheduled).
 
 The tunnel core (`:tunnel` module) and business logic (`util/` package) are ported near-verbatim from `fosrl/android`, since that part is platform-agnostic and doesn't need reinventing. The UI is new, built for D-pad navigation with Compose for TV instead of the phone-oriented Activities/fragments the upstream app uses.
 
@@ -33,6 +33,12 @@ The `:tunnel` module's native build (`tunnel/tools/libpangolin-go/Makefile`) dow
 ./gradlew :tunnel:assembleDebug
 ./gradlew :app:assembleDebug
 ```
+
+## Accounts and logout
+
+Several Pangolin accounts can be signed in at once (Home, then Accounts): switch between them, add one, or log one out. Logging out an account erases everything on the device that could be used to act as that user: the session token, the OLM id and secret (the secret alone is enough to open a tunnel), the entry in `accounts.json`, and the tunnel logs and downloaded update. The tunnel is stopped first when it belongs to that account. Ending the server session is best effort and never blocks the local wipe.
+
+The device is not deleted on the Pangolin server: remove it from the Pangolin dashboard to revoke it there as well.
 
 ## Distribution & updates
 
