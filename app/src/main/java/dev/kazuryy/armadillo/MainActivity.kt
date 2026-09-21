@@ -4,6 +4,7 @@ import android.app.Activity
 import android.net.VpnService
 import android.os.Bundle
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Box
@@ -18,6 +19,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.lifecycle.lifecycleScope
 import androidx.tv.material3.Text
+import dev.kazuryy.armadillo.ui.AccountsScreen
 import dev.kazuryy.armadillo.ui.HomeScreen
 import dev.kazuryy.armadillo.ui.LoginFlow
 import dev.kazuryy.armadillo.ui.theme.ArmadilloTheme
@@ -30,6 +32,8 @@ import dev.kazuryy.armadillo.util.FingerprintManager
 import dev.kazuryy.armadillo.util.SecretManager
 import dev.kazuryy.armadillo.util.TunnelManager
 import kotlinx.coroutines.launch
+
+private enum class Screen { HOME, ACCOUNTS, ADD_ACCOUNT }
 
 class MainActivity : ComponentActivity() {
 
@@ -91,6 +95,26 @@ class MainActivity : ComponentActivity() {
                 val isInitializing by authManager.isInitializing.collectAsState()
                 val isAuthenticated by authManager.isAuthenticated.collectAsState()
                 var didInit by remember { mutableStateOf(false) }
+                var screen by remember { mutableStateOf(Screen.HOME) }
+                val loginCount by authManager.loginCount.collectAsState()
+
+                // A completed sign-in ends the "add account" flow
+                LaunchedEffect(loginCount) {
+                    if (screen == Screen.ADD_ACCOUNT) screen = Screen.HOME
+                }
+                // Logging out the last account must not leave a stale screen behind
+                LaunchedEffect(isAuthenticated) {
+                    if (!isAuthenticated) screen = Screen.HOME
+                }
+
+                val leaveAddAccount = {
+                    authManager.cancelDeviceAuth()
+                    // The login flow pointed the shared API client at the new host
+                    authManager.syncApiClientForActiveAccount()
+                    screen = Screen.HOME
+                }
+                BackHandler(enabled = screen == Screen.ACCOUNTS) { screen = Screen.HOME }
+                BackHandler(enabled = screen == Screen.ADD_ACCOUNT) { leaveAddAccount() }
 
                 LaunchedEffect(Unit) {
                     if (!didInit) {
@@ -103,7 +127,18 @@ class MainActivity : ComponentActivity() {
                     when {
                         isInitializing -> Text("Loading...")
                         !isAuthenticated -> LoginFlow(authManager)
-                        else -> HomeScreen(authManager, tunnelManager, onConnectRequested = ::requestConnect)
+                        screen == Screen.ACCOUNTS -> AccountsScreen(
+                            authManager = authManager,
+                            onAddAccount = { screen = Screen.ADD_ACCOUNT },
+                            onBack = { screen = Screen.HOME }
+                        )
+                        screen == Screen.ADD_ACCOUNT -> LoginFlow(authManager, onExit = leaveAddAccount)
+                        else -> HomeScreen(
+                            authManager,
+                            tunnelManager,
+                            onConnectRequested = ::requestConnect,
+                            onOpenAccounts = { screen = Screen.ACCOUNTS }
+                        )
                     }
                 }
             }

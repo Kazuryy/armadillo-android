@@ -45,7 +45,12 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
 
 @Composable
-fun HomeScreen(authManager: AuthManager, tunnelManager: TunnelManager, onConnectRequested: () -> Unit) {
+fun HomeScreen(
+    authManager: AuthManager,
+    tunnelManager: TunnelManager,
+    onConnectRequested: () -> Unit,
+    onOpenAccounts: () -> Unit
+) {
     val tunnelState by tunnelManager.tunnelState.collectAsState()
     val currentUser by authManager.currentUser.collectAsState()
     val currentOrg by authManager.currentOrg.collectAsState()
@@ -149,6 +154,9 @@ fun HomeScreen(authManager: AuthManager, tunnelManager: TunnelManager, onConnect
                     Text(if (tunnelState.isFullyConnected) "Disconnect" else "Connect")
                 }
             }
+
+            Spacer(modifier = Modifier.height(24.dp))
+            Button(onClick = onOpenAccounts) { Text("Accounts") }
         }
     }
 }

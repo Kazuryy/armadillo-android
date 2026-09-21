@@ -18,6 +18,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.tv.material3.Button
 import androidx.tv.material3.Text
 import dev.kazuryy.armadillo.ui.theme.SecondaryText
 import dev.kazuryy.armadillo.util.AuthManager
@@ -27,7 +28,7 @@ import kotlinx.coroutines.launch
 private enum class HostingOption { CLOUD, SELF_HOSTED }
 
 @Composable
-fun LoginFlow(authManager: AuthManager) {
+fun LoginFlow(authManager: AuthManager, onExit: (() -> Unit)? = null) {
     var hostingOption by remember { mutableStateOf<HostingOption?>(null) }
     var selfHostedURL by remember { mutableStateOf("") }
     var isLoggingIn by remember { mutableStateOf(false) }
@@ -78,13 +79,19 @@ fun LoginFlow(authManager: AuthManager) {
                     onBack = { hostingOption = null }
                 )
 
-                else -> HostingSelectionScreen(
-                    onCloudSelected = {
-                        hostingOption = HostingOption.CLOUD
-                        performLogin("https://app.pangolin.net")
-                    },
-                    onSelfHostedSelected = { hostingOption = HostingOption.SELF_HOSTED }
-                )
+                else -> Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    HostingSelectionScreen(
+                        onCloudSelected = {
+                            hostingOption = HostingOption.CLOUD
+                            performLogin("https://app.pangolin.net")
+                        },
+                        onSelfHostedSelected = { hostingOption = HostingOption.SELF_HOSTED }
+                    )
+                    if (onExit != null) {
+                        Spacer(modifier = Modifier.height(32.dp))
+                        Button(onClick = onExit) { Text("Cancel") }
+                    }
+                }
             }
         }
     }
