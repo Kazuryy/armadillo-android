@@ -17,12 +17,14 @@ import androidx.tv.material3.Button
 import androidx.tv.material3.ButtonDefaults
 import androidx.tv.material3.Text
 import dev.kazuryy.armadillo.ui.theme.BrandOrange
+import dev.kazuryy.armadillo.ui.theme.SecondaryText
 import dev.kazuryy.armadillo.util.UpdateInfo
 
 @Composable
 fun UpdateBanner(
     updateInfo: UpdateInfo,
     isInstalling: Boolean,
+    errorMessage: String? = null,
     onInstallClick: () -> Unit
 ) {
     Row(
@@ -33,6 +35,7 @@ fun UpdateBanner(
         horizontalArrangement = Arrangement.spacedBy(16.dp)
     ) {
         Text(text = "Version ${updateInfo.versionName} available", fontSize = 14.sp, color = Color.White)
+        errorMessage?.let { Text(text = it, fontSize = 14.sp, color = SecondaryText) }
         Button(
             onClick = onInstallClick,
             enabled = !isInstalling,

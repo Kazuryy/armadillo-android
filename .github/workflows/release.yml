@@ -52,6 +52,7 @@ jobs:
         run: |
           mkdir -p release-out
           cp app/build/outputs/apk/release/app-release.apk release-out/armadillo-android.apk
+          (cd release-out && sha256sum armadillo-android.apk > armadillo-android.apk.sha256)
 
       - name: Clean up signing material
         if: always()
@@ -60,5 +61,7 @@ jobs:
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          files: release-out/armadillo-android.apk
+          files: |
+            release-out/armadillo-android.apk
+            release-out/armadillo-android.apk.sha256
           generate_release_notes: true

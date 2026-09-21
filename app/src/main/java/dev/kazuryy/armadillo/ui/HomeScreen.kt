@@ -41,6 +41,7 @@ import dev.kazuryy.armadillo.util.TunnelManager
 import dev.kazuryy.armadillo.util.UpdateChecker
 import dev.kazuryy.armadillo.util.UpdateInfo
 import dev.kazuryy.armadillo.util.UpdateInstaller
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
 
 @Composable
@@ -54,6 +55,7 @@ fun HomeScreen(authManager: AuthManager, tunnelManager: TunnelManager, onConnect
 
     var updateInfo by remember { mutableStateOf<UpdateInfo?>(null) }
     var isInstallingUpdate by remember { mutableStateOf(false) }
+    var updateError by remember { mutableStateOf<String?>(null) }
 
     LaunchedEffect(Unit) {
         connectButtonFocusRequester.requestFocus()
@@ -70,8 +72,10 @@ fun HomeScreen(authManager: AuthManager, tunnelManager: TunnelManager, onConnect
                 UpdateBanner(
                     updateInfo = info,
                     isInstalling = isInstallingUpdate,
+                    errorMessage = updateError,
                     onInstallClick = {
                         isInstallingUpdate = true
+                        updateError = null
                         scope.launch {
                             val installer = UpdateInstaller()
                             val unknownSourcesIntent = installer.unknownSourcesIntentIfNeeded(context)
@@ -81,8 +85,12 @@ fun HomeScreen(authManager: AuthManager, tunnelManager: TunnelManager, onConnect
                                 return@launch
                             }
                             try {
-                                val apkFile = installer.downloadApk(context, info.downloadUrl)
+                                val apkFile = installer.downloadApk(context, info)
                                 context.startActivity(installer.installIntent(context, apkFile))
+                            } catch (e: CancellationException) {
+                                throw e
+                            } catch (e: Exception) {
+                                updateError = e.message ?: "Update failed"
                             } finally {
                                 isInstallingUpdate = false
                             }
