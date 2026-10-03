@@ -14,6 +14,9 @@ the description of its GitHub Release, so it must exist before the `vX.Y.Z` tag 
 - The update banner shows the release notes of the new version before downloading it.
 - Release descriptions are built from this file, with the SHA-256 of the APK and install steps.
 
+### Security
+- The tunnel core no longer writes the device secret and the user token to the system log. Upstream reads the requested log level but never applies it, so the core always ran at debug level; it now runs at info level, and the log of the first minutes of a connection no longer contains any credential.
+
 ### Changed
 - Synchronized with the official Android client (fosrl/android 0.8.1): olm 1.10.1, newt 1.18.1, Go 1.26, and its tunnel service and connection logic.
 - While Always-On owns the tunnel, switching or adding an account and logging out the active one are refused, and Disconnect explains how to turn Always-On off in the Android VPN settings.

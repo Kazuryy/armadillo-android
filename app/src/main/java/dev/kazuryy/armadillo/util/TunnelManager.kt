@@ -295,7 +295,7 @@ class TunnelManager private constructor(
             withContext(Dispatchers.IO) {
                 val initConfigBuilder = InitConfig.Builder()
                     .setEnableAPI(true)
-                    .setLogLevel("debug")
+                    .setLogLevel("info")
                     .setAgent("Armadillo Android TV")
                     .setVersion(context.packageManager.getPackageInfo(context.packageName, 0).versionName ?: "unknown")
                     .setSocketPath(File(context.filesDir, "armadillo.sock").absolutePath)
