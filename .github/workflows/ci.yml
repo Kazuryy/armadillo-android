@@ -1,22 +1,45 @@
 name: CI
 
+# Build check only: nothing is published here. Releases are made by release.yml, on a v* tag.
 on:
   push:
-    branches: [main, master, develop]
+    branches: [main, master, develop, dev, sync-upstream]
+    paths-ignore:
+      - "**.md"
+      - "store-assets/**"
+      - "LICENSE"
   pull_request:
+    paths-ignore:
+      - "**.md"
+      - "store-assets/**"
+      - "LICENSE"
+  workflow_dispatch:
+
+# A newer push to the same branch makes an older, still running build useless
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
 
 jobs:
   build-and-test:
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Set up JDK 21
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@v6
         with:
           distribution: temurin
           java-version: "21"
+
+      # Caches Gradle and the Go toolchain the native build downloads
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v6
 
       - name: Install required SDK packages
         run: |
@@ -25,7 +48,32 @@ jobs:
           "$SDKMANAGER" --install "platforms;android-36" "build-tools;36.0.0" "ndk;29.0.14206865" "cmake;3.22.1"
 
       - name: Unit tests
-        run: ./gradlew :app:testDebugUnitTest --no-daemon
+        run: ./gradlew :app:testDebugUnitTest :tunnel:testDebugUnitTest --no-daemon
+
+      - name: Lint
+        run: ./gradlew :app:lintDebug --no-daemon
 
       - name: Build debug APK
         run: ./gradlew :app:assembleDebug --no-daemon
+
+      # Release builds are minified with R8, which can break what a debug build does not.
+      # Unsigned, so this needs no secret and runs on pull requests too.
+      - name: Build release APK (R8 check)
+        run: ./gradlew :app:assembleRelease --no-daemon
+
+      - name: Upload debug APK
+        uses: actions/upload-artifact@v7
+        with:
+          name: armadillo-debug-apk
+          path: app/build/outputs/apk/debug/app-debug.apk
+          retention-days: 7
+
+      - name: Upload test and lint reports
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: reports
+          path: |
+            app/build/reports/
+            tunnel/build/reports/
+          retention-days: 7

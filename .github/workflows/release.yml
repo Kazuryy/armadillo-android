@@ -35,6 +35,10 @@ jobs:
           yes | "$SDKMANAGER" --licenses > /dev/null || true
           "$SDKMANAGER" --install "platforms;android-36" "build-tools;36.0.0" "ndk;29.0.14206865" "cmake;3.22.1"
 
+      # A tag must never publish a build whose tests fail
+      - name: Unit tests
+        run: ./gradlew :app:testDebugUnitTest :tunnel:testDebugUnitTest --no-daemon
+
       - name: Decode signing keystore
         env:
           KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
