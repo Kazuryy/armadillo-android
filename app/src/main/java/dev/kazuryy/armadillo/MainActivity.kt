@@ -20,13 +20,16 @@ import androidx.compose.ui.Modifier
 import androidx.lifecycle.lifecycleScope
 import androidx.tv.material3.Text
 import dev.kazuryy.armadillo.ui.AccountsScreen
+import dev.kazuryy.armadillo.ui.ExitNodeScreen
+import dev.kazuryy.armadillo.ui.SettingsScreen
+import dev.kazuryy.armadillo.ui.SitesScreen
 import dev.kazuryy.armadillo.ui.HomeScreen
 import dev.kazuryy.armadillo.ui.LoginFlow
 import dev.kazuryy.armadillo.ui.theme.ArmadilloTheme
 import dev.kazuryy.armadillo.util.TunnelManager
 import kotlinx.coroutines.launch
 
-private enum class Screen { HOME, ACCOUNTS, ADD_ACCOUNT }
+private enum class Screen { HOME, ACCOUNTS, ADD_ACCOUNT, EXIT_NODE, SITES, SETTINGS }
 
 class MainActivity : ComponentActivity() {
 
@@ -80,7 +83,9 @@ class MainActivity : ComponentActivity() {
                     authManager.syncApiClientForActiveAccount()
                     screen = Screen.HOME
                 }
-                BackHandler(enabled = screen == Screen.ACCOUNTS) { screen = Screen.HOME }
+                BackHandler(enabled = screen == Screen.ACCOUNTS || screen == Screen.EXIT_NODE || screen == Screen.SITES || screen == Screen.SETTINGS) {
+                    screen = Screen.HOME
+                }
                 BackHandler(enabled = screen == Screen.ADD_ACCOUNT) { leaveAddAccount() }
 
                 LaunchedEffect(Unit) {
@@ -100,12 +105,18 @@ class MainActivity : ComponentActivity() {
                             onBack = { screen = Screen.HOME }
                         )
                         screen == Screen.ADD_ACCOUNT -> LoginFlow(authManager, onExit = leaveAddAccount)
+                        screen == Screen.EXIT_NODE -> ExitNodeScreen(tunnelManager, onBack = { screen = Screen.HOME })
+                        screen == Screen.SITES -> SitesScreen(tunnelManager, onBack = { screen = Screen.HOME })
+                        screen == Screen.SETTINGS -> SettingsScreen(runtime.configManager, onBack = { screen = Screen.HOME })
                         else -> HomeScreen(
                             authManager,
                             tunnelManager,
                             onConnectRequested = ::requestConnect,
                             onDisconnectRequested = disconnectFromUser,
-                            onOpenAccounts = { screen = Screen.ACCOUNTS }
+                            onOpenAccounts = { screen = Screen.ACCOUNTS },
+                            onOpenExitNode = { screen = Screen.EXIT_NODE },
+                            onOpenSites = { screen = Screen.SITES },
+                            onOpenSettings = { screen = Screen.SETTINGS }
                         )
                     }
                 }

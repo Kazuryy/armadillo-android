@@ -50,7 +50,10 @@ fun HomeScreen(
     tunnelManager: TunnelManager,
     onConnectRequested: () -> Unit,
     onDisconnectRequested: suspend () -> Boolean,
-    onOpenAccounts: () -> Unit
+    onOpenAccounts: () -> Unit,
+    onOpenExitNode: () -> Unit,
+    onOpenSites: () -> Unit,
+    onOpenSettings: () -> Unit
 ) {
     val tunnelState by tunnelManager.tunnelState.collectAsState()
     val currentUser by authManager.currentUser.collectAsState()
@@ -166,7 +169,12 @@ fun HomeScreen(
             }
 
             Spacer(modifier = Modifier.height(24.dp))
-            Button(onClick = onOpenAccounts) { Text("Accounts") }
+            Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+                Button(onClick = onOpenAccounts) { Text("Accounts") }
+                Button(onClick = onOpenExitNode) { Text("Exit node") }
+                Button(onClick = onOpenSites) { Text("Sites") }
+                Button(onClick = onOpenSettings) { Text("Settings") }
+            }
         }
     }
 }
