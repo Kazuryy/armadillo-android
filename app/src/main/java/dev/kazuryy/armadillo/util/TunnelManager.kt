@@ -502,6 +502,10 @@ class TunnelManager private constructor(
     private suspend fun resolveSavedExitNode(orgId: String): SiteResource? {
         val savedResourceId = accountManager.getExitNode(accountManager.activeUserId) ?: return null
 
+        // A start made by Android (Always-On, after a reboot) runs before the UI has set up the
+        // API client, so give it the active account's host and session token first.
+        authManager.syncApiClientForActiveAccount()
+
         return try {
             val gateway = authManager.apiClient.listGatewayResources(orgId)
                 .firstOrNull { it.siteResourceId == savedResourceId }
