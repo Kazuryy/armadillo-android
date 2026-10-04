@@ -9,6 +9,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strings"
 	"sync"
 
 	olmpkg "github.com/fosrl/olm/olm"
@@ -51,13 +52,23 @@ var (
 	olmInstance   *olmpkg.Olm
 )
 
+// parseLogLevel maps "debug", "info", "warn" or "error" (any case) to a LogLevel.
+func parseLogLevel(name string) (LogLevel, bool) {
+	switch strings.ToLower(strings.TrimSpace(name)) {
+	case "debug":
+		return LogLevelDebug, true
+	case "info":
+		return LogLevelInfo, true
+	case "warn", "warning":
+		return LogLevelWarn, true
+	case "error":
+		return LogLevelError, true
+	}
+	return LogLevelDebug, false
+}
+
 //export initOlm
 func initOlm(configJSON *C.char) *C.char {
-	// Initialize OLM logger with current log level
-	InitOLMLogger()
-
-	appLogger.Info("Initializing with config")
-
 	// Parse JSON configuration
 	configStr := C.GoString(configJSON)
 	var config InitOlmConfig
@@ -65,6 +76,18 @@ func initOlm(configJSON *C.char) *C.char {
 		appLogger.Error("Failed to parse init config JSON: %v", err)
 		return C.CString(fmt.Sprintf("Error: Failed to parse config JSON: %v", err))
 	}
+
+	// Apply the requested log level before anything else is logged or handed to olm. Upstream
+	// reads logLevel from the config but never applies it, so the core always ran at debug, which
+	// logs the tunnel config (OLM secret and user token) to logcat.
+	if level, ok := parseLogLevel(config.LogLevel); ok {
+		appLogger.SetLevel(level)
+	}
+
+	// Initialize OLM logger with current log level
+	InitOLMLogger()
+
+	appLogger.Info("Initializing with config")
 
 	// print out the config we got
 	appLogger.Debug("Init config: %+v", config)
