@@ -49,7 +49,11 @@ fun HomeScreen(
     authManager: AuthManager,
     tunnelManager: TunnelManager,
     onConnectRequested: () -> Unit,
-    onOpenAccounts: () -> Unit
+    onDisconnectRequested: suspend () -> Boolean,
+    onOpenAccounts: () -> Unit,
+    onOpenExitNode: () -> Unit,
+    onOpenSites: () -> Unit,
+    onOpenSettings: () -> Unit
 ) {
     val tunnelState by tunnelManager.tunnelState.collectAsState()
     val currentUser by authManager.currentUser.collectAsState()
@@ -61,6 +65,7 @@ fun HomeScreen(
     var updateInfo by remember { mutableStateOf<UpdateInfo?>(null) }
     var isInstallingUpdate by remember { mutableStateOf(false) }
     var updateError by remember { mutableStateOf<String?>(null) }
+    var disconnectBlocked by remember { mutableStateOf(false) }
 
     LaunchedEffect(Unit) {
         connectButtonFocusRequester.requestFocus()
@@ -130,6 +135,14 @@ fun HomeScreen(
                     Spacer(modifier = Modifier.width(12.dp))
                     Text(text = tunnelState.statusMessage, fontSize = 20.sp)
                 }
+                if (disconnectBlocked) {
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        text = "Always-On VPN is active. Turn it off in Android VPN settings to disconnect.",
+                        fontSize = 14.sp,
+                        color = SecondaryText
+                    )
+                }
                 tunnelState.errorMessage?.let {
                     Spacer(modifier = Modifier.height(8.dp))
                     Text(text = it, fontSize = 14.sp, color = SecondaryText)
@@ -141,7 +154,7 @@ fun HomeScreen(
                     modifier = Modifier.focusRequester(connectButtonFocusRequester),
                     onClick = {
                         if (tunnelState.isFullyConnected || tunnelState.canDisable) {
-                            scope.launch { tunnelManager.disconnect() }
+                            scope.launch { disconnectBlocked = !onDisconnectRequested() }
                         } else {
                             onConnectRequested()
                         }
@@ -156,7 +169,12 @@ fun HomeScreen(
             }
 
             Spacer(modifier = Modifier.height(24.dp))
-            Button(onClick = onOpenAccounts) { Text("Accounts") }
+            Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+                Button(onClick = onOpenAccounts) { Text("Accounts") }
+                Button(onClick = onOpenExitNode) { Text("Exit node") }
+                Button(onClick = onOpenSites) { Text("Sites") }
+                Button(onClick = onOpenSettings) { Text("Settings") }
+            }
         }
     }
 }

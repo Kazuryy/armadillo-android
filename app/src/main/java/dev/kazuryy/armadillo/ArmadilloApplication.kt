@@ -5,7 +5,6 @@ import android.util.Log
 import dev.kazuryy.armadillo.util.CrashHandler
 import dev.kazuryy.armadillo.util.SocketManager
 import dev.kazuryy.armadillo.util.StandbyDetector
-import java.io.File
 
 class ArmadilloApplication : Application(), StandbyDetector.StandbyListener {
 
@@ -14,6 +13,7 @@ class ArmadilloApplication : Application(), StandbyDetector.StandbyListener {
 
     private val standbyListeners = mutableListOf<StandbyListener>()
 
+    lateinit var runtime: ArmadilloRuntime private set
     lateinit var socketManager: SocketManager private set
 
     override fun onCreate() {
@@ -23,8 +23,10 @@ class ArmadilloApplication : Application(), StandbyDetector.StandbyListener {
 
         Log.d(tag, "Armadillo application starting")
 
-        val socketPath = File(filesDir, "armadillo.sock").absolutePath
-        socketManager = SocketManager(socketPath)
+        // Android creates the Application before a system-started VpnService (Always-On after a
+        // reboot, or after the process was killed), so this graph exists even with no Activity.
+        runtime = ArmadilloRuntime(this)
+        socketManager = runtime.socketManager
 
         standbyDetector = StandbyDetector(this, this)
         standbyDetector?.start()

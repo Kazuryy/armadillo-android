@@ -15,7 +15,8 @@ internal fun clearLocalTraces(filesDir: File, cacheDir: File, tunnelRunning: Boo
 
     if (!tunnelRunning) {
         filesDir.listFiles()?.forEach { file ->
-            val isTrace = file.isFile &&
+            // Not isFile: that is false for a Unix socket, and a killed process leaves one behind
+            val isTrace = !file.isDirectory &&
                 (file.name == SOCKET_FILE_NAME || LOG_FILE_PREFIXES.any { file.name.startsWith(it) })
             if (isTrace && file.delete()) deleted++
         }

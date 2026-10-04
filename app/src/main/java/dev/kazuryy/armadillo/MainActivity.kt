@@ -20,20 +20,16 @@ import androidx.compose.ui.Modifier
 import androidx.lifecycle.lifecycleScope
 import androidx.tv.material3.Text
 import dev.kazuryy.armadillo.ui.AccountsScreen
+import dev.kazuryy.armadillo.ui.ExitNodeScreen
+import dev.kazuryy.armadillo.ui.SettingsScreen
+import dev.kazuryy.armadillo.ui.SitesScreen
 import dev.kazuryy.armadillo.ui.HomeScreen
 import dev.kazuryy.armadillo.ui.LoginFlow
 import dev.kazuryy.armadillo.ui.theme.ArmadilloTheme
-import dev.kazuryy.armadillo.util.AccountManager
-import dev.kazuryy.armadillo.util.AndroidFingerprintCollector
-import dev.kazuryy.armadillo.util.APIClient
-import dev.kazuryy.armadillo.util.AuthManager
-import dev.kazuryy.armadillo.util.ConfigManager
-import dev.kazuryy.armadillo.util.FingerprintManager
-import dev.kazuryy.armadillo.util.SecretManager
 import dev.kazuryy.armadillo.util.TunnelManager
 import kotlinx.coroutines.launch
 
-private enum class Screen { HOME, ACCOUNTS, ADD_ACCOUNT }
+private enum class Screen { HOME, ACCOUNTS, ADD_ACCOUNT, EXIT_NODE, SITES, SETTINGS }
 
 class MainActivity : ComponentActivity() {
 
@@ -59,36 +55,10 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        val versionName = try {
-            packageManager.getPackageInfo(packageName, 0).versionName ?: "0.1.0"
-        } catch (e: Exception) {
-            "0.1.0"
-        }
-
-        val secretManager = SecretManager.getInstance(applicationContext)
-        val accountManager = AccountManager.getInstance(applicationContext)
-        val configManager = ConfigManager.getInstance(applicationContext)
-        val apiClient = APIClient("https://app.pangolin.net", versionName = versionName)
-        val socketManager = (application as ArmadilloApplication).socketManager
-        val fingerprintManager = FingerprintManager(applicationContext, socketManager, AndroidFingerprintCollector(applicationContext))
-
-        val authManager = AuthManager(
-            context = applicationContext,
-            apiClient = apiClient,
-            configManager = configManager,
-            accountManager = accountManager,
-            secretManager = secretManager
-        )
-        tunnelManager = TunnelManager.getInstance(
-            context = applicationContext,
-            authManager = authManager,
-            accountManager = accountManager,
-            secretManager = secretManager,
-            configManager = configManager,
-            socketManager = socketManager,
-            fingerprintManager = fingerprintManager
-        )
-        authManager.tunnelManager = tunnelManager
+        val runtime = (application as ArmadilloApplication).runtime
+        val authManager = runtime.authManager
+        tunnelManager = runtime.tunnelManager
+        val disconnectFromUser: suspend () -> Boolean = { runtime.disconnectFromUser() }
 
         setContent {
             ArmadilloTheme {
@@ -113,7 +83,9 @@ class MainActivity : ComponentActivity() {
                     authManager.syncApiClientForActiveAccount()
                     screen = Screen.HOME
                 }
-                BackHandler(enabled = screen == Screen.ACCOUNTS) { screen = Screen.HOME }
+                BackHandler(enabled = screen == Screen.ACCOUNTS || screen == Screen.EXIT_NODE || screen == Screen.SITES || screen == Screen.SETTINGS) {
+                    screen = Screen.HOME
+                }
                 BackHandler(enabled = screen == Screen.ADD_ACCOUNT) { leaveAddAccount() }
 
                 LaunchedEffect(Unit) {
@@ -133,11 +105,18 @@ class MainActivity : ComponentActivity() {
                             onBack = { screen = Screen.HOME }
                         )
                         screen == Screen.ADD_ACCOUNT -> LoginFlow(authManager, onExit = leaveAddAccount)
+                        screen == Screen.EXIT_NODE -> ExitNodeScreen(tunnelManager, onBack = { screen = Screen.HOME })
+                        screen == Screen.SITES -> SitesScreen(tunnelManager, onBack = { screen = Screen.HOME })
+                        screen == Screen.SETTINGS -> SettingsScreen(runtime.configManager, onBack = { screen = Screen.HOME })
                         else -> HomeScreen(
                             authManager,
                             tunnelManager,
                             onConnectRequested = ::requestConnect,
-                            onOpenAccounts = { screen = Screen.ACCOUNTS }
+                            onDisconnectRequested = disconnectFromUser,
+                            onOpenAccounts = { screen = Screen.ACCOUNTS },
+                            onOpenExitNode = { screen = Screen.EXIT_NODE },
+                            onOpenSites = { screen = Screen.SITES },
+                            onOpenSettings = { screen = Screen.SETTINGS }
                         )
                     }
                 }
