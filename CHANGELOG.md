@@ -5,6 +5,8 @@ the description of its GitHub Release, so it must exist before the `vX.Y.Z` tag 
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-10-04
+
 ### Added
 - Always-On VPN: Android can restart the tunnel after a reboot or when the app is killed. Nothing is restarted once the active account has been logged out.
 - Exit nodes: a screen to route all traffic through an exit node of the organization, or none.
@@ -13,14 +15,20 @@ the description of its GitHub Release, so it must exist before the `vX.Y.Z` tag 
 - IPv6 addresses are accepted for the upstream DNS servers.
 - The update banner shows the release notes of the new version before downloading it.
 - Release descriptions are built from this file, with the SHA-256 of the APK and install steps.
-
-### Security
-- The tunnel core no longer writes the device secret and the user token to the system log. Upstream reads the requested log level but never applies it, so the core always ran at debug level; it now runs at info level, and the log of the first minutes of a connection no longer contains any credential.
+- Exit node choice is applied when Android restarts the tunnel (after a reboot), not only when the app is opened.
 
 ### Changed
 - Synchronized with the official Android client (fosrl/android 0.8.1): olm 1.10.1, newt 1.18.1, Go 1.26, and its tunnel service and connection logic.
 - While Always-On owns the tunnel, switching or adding an account and logging out the active one are refused, and Disconnect explains how to turn Always-On off in the Android VPN settings.
 - CI builds the debug and the unsigned release APK (to catch R8 problems) on every push to the development branches and on pull requests. A release tag now runs the unit tests first.
+
+## [0.1.3] - 2026-10-04
+
+### Security
+- The tunnel core no longer writes the device secret and the user token to the system log. Upstream reads the requested log level but never applies it, so the core always ran at debug level; it now runs at info level, and the log of the first minutes of a connection no longer contains any credential.
+
+### Changed
+- The native core rebuilds when a Go source changes.
 
 ## [0.1.2] - 2026-09-21
 
@@ -57,7 +65,9 @@ the description of its GitHub Release, so it must exist before the `vX.Y.Z` tag 
 - Signed APK releases on GitHub with in-app update checks.
 - Brand identity aligned with armadillo-apple.
 
-[Unreleased]: https://github.com/Kazuryy/armadillo-android/compare/v0.1.2...HEAD
+[Unreleased]: https://github.com/Kazuryy/armadillo-android/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/Kazuryy/armadillo-android/compare/v0.1.3...v0.2.0
+[0.1.3]: https://github.com/Kazuryy/armadillo-android/compare/v0.1.2...v0.1.3
 [0.1.2]: https://github.com/Kazuryy/armadillo-android/compare/v0.1.1...v0.1.2
 [0.1.1]: https://github.com/Kazuryy/armadillo-android/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/Kazuryy/armadillo-android/releases/tag/v0.1.0
