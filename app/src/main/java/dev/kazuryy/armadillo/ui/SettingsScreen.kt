@@ -34,6 +34,7 @@ fun SettingsScreen(configManager: ConfigManager, onBack: () -> Unit) {
     val tunnelDns = config.dnsTunnelEnabled ?: false
     val exitFirst = config.exitNodeTakesPrecedence ?: false
     val collectLogs = config.logCollectionEnabled ?: false
+    val keepForeground = config.persistentVpnNotification
 
     TvScreen(
         title = "Settings",
@@ -66,6 +67,13 @@ fun SettingsScreen(configManager: ConfigManager, onBack: () -> Unit) {
             description = "Write the tunnel log to a file on this TV. It is erased when you log out.",
             enabled = collectLogs,
             onToggle = { configManager.updateConfig { c: Config -> c.copy(logCollectionEnabled = !collectLogs) } }
+        )
+        Spacer(modifier = Modifier.height(12.dp))
+        SettingRow(
+            title = "Keep VPN in foreground",
+            description = "Keep the VPN service in the foreground so TV memory managers are less likely to stop it.",
+            enabled = keepForeground,
+            onToggle = { configManager.updateConfig { c: Config -> c.copy(persistentVpnNotification = !keepForeground) } }
         )
 
         Spacer(modifier = Modifier.height(20.dp))
