@@ -5,6 +5,9 @@ the description of its GitHub Release, so it must exist before the `vX.Y.Z` tag 
 
 ## [Unreleased]
 
+### Added
+- Settings: a "Keep VPN in foreground" toggle, so the tunnel service is less likely to be stopped by TV memory managers (for example TCL's TGuard) that kill apps not in the foreground.
+
 ## [0.2.0] - 2026-10-04
 
 ### Added
