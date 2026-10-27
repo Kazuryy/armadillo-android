@@ -5,8 +5,14 @@ the description of its GitHub Release, so it must exist before the `vX.Y.Z` tag 
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-10-27
+
 ### Added
 - Settings: a "Keep VPN in foreground" toggle, so the tunnel service is less likely to be stopped by TV memory managers (for example TCL's TGuard) that kill apps not in the foreground.
+
+### Fixed
+- The TV banner artwork, regenerated from the real App Store icon (it previously looked out of place next to the actual icon).
+- The cloud and self-hosted icons on the hosting-selection screen, which rendered as a missing-glyph box on some TVs' system fonts since they were raw Unicode symbol characters; they're now drawn directly so they render the same everywhere.
 
 ## [0.2.0] - 2026-10-04
 
