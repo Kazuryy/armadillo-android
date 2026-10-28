@@ -36,16 +36,21 @@ import dev.kazuryy.armadillo.ui.theme.DangerRed
 import dev.kazuryy.armadillo.ui.theme.SecondaryText
 import dev.kazuryy.armadillo.util.Account
 import dev.kazuryy.armadillo.util.AuthManager
+import dev.kazuryy.armadillo.util.ConfigManager
+import dev.kazuryy.armadillo.util.maskIfPrivate
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
 
 @Composable
 fun AccountsScreen(
     authManager: AuthManager,
+    configManager: ConfigManager,
     onAddAccount: () -> Unit,
     onBack: () -> Unit
 ) {
     val store by authManager.accountManager.store.collectAsState()
+    val config by configManager.config.collectAsState()
+    val privacyMode = config.privacyModeEnabled
     val scope = rememberCoroutineScope()
     val accounts = store.accounts.values.sortedBy { it.email.lowercase() }
 
@@ -70,6 +75,7 @@ fun AccountsScreen(
                 LogoutConfirmation(
                     account = pending,
                     isBusy = isBusy,
+                    privacyMode = privacyMode,
                     cancelFocus = initialFocus,
                     onCancel = { pendingLogout = null },
                     onConfirm = {
@@ -97,6 +103,7 @@ fun AccountsScreen(
                         account = account,
                         isActive = account.userId == store.activeUserId,
                         isBusy = isBusy,
+                        privacyMode = privacyMode,
                         onSwitch = {
                             isBusy = true
                             error = null
@@ -143,6 +150,7 @@ private fun AccountRow(
     account: Account,
     isActive: Boolean,
     isBusy: Boolean,
+    privacyMode: Boolean,
     onSwitch: () -> Unit,
     onLogout: () -> Unit
 ) {
@@ -155,9 +163,10 @@ private fun AccountRow(
         horizontalArrangement = Arrangement.spacedBy(16.dp)
     ) {
         Column(modifier = Modifier.weight(1f)) {
-            Text(text = account.email, fontSize = 18.sp, fontWeight = FontWeight.Medium)
+            Text(text = account.email.maskIfPrivate(privacyMode), fontSize = 18.sp, fontWeight = FontWeight.Medium)
             Text(
-                text = account.hostname.removePrefix("https://") + if (isActive) "  ·  Active" else "",
+                text = account.hostname.removePrefix("https://").maskIfPrivate(privacyMode) +
+                    if (isActive) "  ·  Active" else "",
                 fontSize = 14.sp,
                 color = if (isActive) BrandOrange else SecondaryText
             )
@@ -177,11 +186,12 @@ private fun AccountRow(
 private fun LogoutConfirmation(
     account: Account,
     isBusy: Boolean,
+    privacyMode: Boolean,
     cancelFocus: FocusRequester,
     onCancel: () -> Unit,
     onConfirm: () -> Unit
 ) {
-    Text(text = "Log out ${account.email}?", fontSize = 28.sp, fontWeight = FontWeight.Bold)
+    Text(text = "Log out ${account.email.maskIfPrivate(privacyMode)}?", fontSize = 28.sp, fontWeight = FontWeight.Bold)
     Spacer(modifier = Modifier.height(12.dp))
     Text(
         text = "This erases the session and the device credentials of this account from this TV.",

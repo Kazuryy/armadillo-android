@@ -49,6 +49,11 @@ fun LoginFlow(authManager: AuthManager, onExit: (() -> Unit)? = null) {
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center
         ) {
+            // Only the very first sign-in has no account at all yet; "add account" (onExit set)
+            // already has one, and that account's Home screen checks for updates too.
+            if (onExit == null && hostingOption == null && deviceAuthCode == null && !isLoggingIn) {
+                UpdateSection()
+            }
             Text(text = "Armadillo", fontSize = 44.sp, fontWeight = FontWeight.Bold)
             if (hostingOption == null && deviceAuthCode == null && !isLoggingIn) {
                 Spacer(modifier = Modifier.height(8.dp))
