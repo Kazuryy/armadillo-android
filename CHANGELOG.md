@@ -5,6 +5,14 @@ the description of its GitHub Release, so it must exist before the `vX.Y.Z` tag 
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-10-28
+
+### Added
+- Settings: a "Privacy mode" toggle that hides the organization name, email, and server hostname on the Home and Accounts screens, for TVs in a shared or public space.
+
+### Fixed
+- The update check now also runs on the sign-in screen, before any account is added, so a freshly set-up TV learns about a newer release too instead of only after signing in.
+
 ## [0.3.0] - 2026-10-27
 
 ### Added
@@ -74,7 +82,9 @@ the description of its GitHub Release, so it must exist before the `vX.Y.Z` tag 
 - Signed APK releases on GitHub with in-app update checks.
 - Brand identity aligned with armadillo-apple.
 
-[Unreleased]: https://github.com/Kazuryy/armadillo-android/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/Kazuryy/armadillo-android/compare/v0.4.0...HEAD
+[0.4.0]: https://github.com/Kazuryy/armadillo-android/compare/v0.3.0...v0.4.0
+[0.3.0]: https://github.com/Kazuryy/armadillo-android/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/Kazuryy/armadillo-android/compare/v0.1.3...v0.2.0
 [0.1.3]: https://github.com/Kazuryy/armadillo-android/compare/v0.1.2...v0.1.3
 [0.1.2]: https://github.com/Kazuryy/armadillo-android/compare/v0.1.1...v0.1.2
