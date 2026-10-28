@@ -14,8 +14,14 @@ data class Config(
     val logCollectionEnabled: Boolean? = null,
     val mtu: Int? = null,
     val persistentVpnNotification: Boolean = false,
-    val exitNodeTakesPrecedence: Boolean? = null
+    val exitNodeTakesPrecedence: Boolean? = null,
+    val privacyModeEnabled: Boolean = false
 )
+
+// A fixed-length placeholder, so privacy mode never leaks a value's actual length.
+private const val PRIVACY_MASK = "••••••••"
+
+fun String.maskIfPrivate(enabled: Boolean): String = if (enabled) PRIVACY_MASK else this
 
 // MARK: - Account Types
 

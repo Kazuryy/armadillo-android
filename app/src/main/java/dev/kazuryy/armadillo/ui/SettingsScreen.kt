@@ -35,6 +35,7 @@ fun SettingsScreen(configManager: ConfigManager, onBack: () -> Unit) {
     val exitFirst = config.exitNodeTakesPrecedence ?: false
     val collectLogs = config.logCollectionEnabled ?: false
     val keepForeground = config.persistentVpnNotification
+    val privacyMode = config.privacyModeEnabled
 
     TvScreen(
         title = "Settings",
@@ -74,6 +75,13 @@ fun SettingsScreen(configManager: ConfigManager, onBack: () -> Unit) {
             description = "Keep the VPN service in the foreground so TV memory managers are less likely to stop it.",
             enabled = keepForeground,
             onToggle = { configManager.updateConfig { c: Config -> c.copy(persistentVpnNotification = !keepForeground) } }
+        )
+        Spacer(modifier = Modifier.height(12.dp))
+        SettingRow(
+            title = "Privacy mode",
+            description = "Hide the organization name, email, and server address on screen.",
+            enabled = privacyMode,
+            onToggle = { configManager.updateConfig { c: Config -> c.copy(privacyModeEnabled = !privacyMode) } }
         )
 
         Spacer(modifier = Modifier.height(20.dp))

@@ -101,6 +101,7 @@ class MainActivity : ComponentActivity() {
                         !isAuthenticated -> LoginFlow(authManager)
                         screen == Screen.ACCOUNTS -> AccountsScreen(
                             authManager = authManager,
+                            configManager = runtime.configManager,
                             onAddAccount = { screen = Screen.ADD_ACCOUNT },
                             onBack = { screen = Screen.HOME }
                         )
@@ -111,6 +112,7 @@ class MainActivity : ComponentActivity() {
                         else -> HomeScreen(
                             authManager,
                             tunnelManager,
+                            runtime.configManager,
                             onConnectRequested = ::requestConnect,
                             onDisconnectRequested = disconnectFromUser,
                             onOpenAccounts = { screen = Screen.ACCOUNTS },

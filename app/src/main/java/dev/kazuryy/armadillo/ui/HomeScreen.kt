@@ -25,29 +25,26 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.tv.material3.Button
 import androidx.tv.material3.ButtonDefaults
 import androidx.tv.material3.Text
-import dev.kazuryy.armadillo.BuildConfig
 import dev.kazuryy.armadillo.ui.theme.BrandOrange
 import dev.kazuryy.armadillo.ui.theme.CardBackground
 import dev.kazuryy.armadillo.ui.theme.SecondaryText
 import dev.kazuryy.armadillo.util.AuthManager
+import dev.kazuryy.armadillo.util.ConfigManager
 import dev.kazuryy.armadillo.util.TunnelManager
-import dev.kazuryy.armadillo.util.UpdateChecker
-import dev.kazuryy.armadillo.util.UpdateInfo
-import dev.kazuryy.armadillo.util.UpdateInstaller
-import kotlinx.coroutines.CancellationException
+import dev.kazuryy.armadillo.util.maskIfPrivate
 import kotlinx.coroutines.launch
 
 @Composable
 fun HomeScreen(
     authManager: AuthManager,
     tunnelManager: TunnelManager,
+    configManager: ConfigManager,
     onConnectRequested: () -> Unit,
     onDisconnectRequested: suspend () -> Boolean,
     onOpenAccounts: () -> Unit,
@@ -58,18 +55,15 @@ fun HomeScreen(
     val tunnelState by tunnelManager.tunnelState.collectAsState()
     val currentUser by authManager.currentUser.collectAsState()
     val currentOrg by authManager.currentOrg.collectAsState()
+    val config by configManager.config.collectAsState()
+    val privacyMode = config.privacyModeEnabled
     val scope = rememberCoroutineScope()
-    val context = LocalContext.current
     val connectButtonFocusRequester = remember { FocusRequester() }
 
-    var updateInfo by remember { mutableStateOf<UpdateInfo?>(null) }
-    var isInstallingUpdate by remember { mutableStateOf(false) }
-    var updateError by remember { mutableStateOf<String?>(null) }
     var disconnectBlocked by remember { mutableStateOf(false) }
 
     LaunchedEffect(Unit) {
         connectButtonFocusRequester.requestFocus()
-        updateInfo = UpdateChecker().checkForUpdate(BuildConfig.VERSION_NAME)
     }
 
     ArmadilloBackground(isActive = tunnelState.isFullyConnected) {
@@ -78,44 +72,16 @@ fun HomeScreen(
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center
         ) {
-            updateInfo?.let { info ->
-                UpdateBanner(
-                    updateInfo = info,
-                    isInstalling = isInstallingUpdate,
-                    errorMessage = updateError,
-                    onInstallClick = {
-                        isInstallingUpdate = true
-                        updateError = null
-                        scope.launch {
-                            val installer = UpdateInstaller()
-                            val unknownSourcesIntent = installer.unknownSourcesIntentIfNeeded(context)
-                            if (unknownSourcesIntent != null) {
-                                context.startActivity(unknownSourcesIntent)
-                                isInstallingUpdate = false
-                                return@launch
-                            }
-                            try {
-                                val apkFile = installer.downloadApk(context, info)
-                                context.startActivity(installer.installIntent(context, apkFile))
-                            } catch (e: CancellationException) {
-                                throw e
-                            } catch (e: Exception) {
-                                updateError = e.message ?: "Update failed"
-                            } finally {
-                                isInstallingUpdate = false
-                            }
-                        }
-                    }
-                )
-                Spacer(modifier = Modifier.height(24.dp))
-            }
+            UpdateSection()
 
             Text(text = "Armadillo", fontSize = 36.sp, fontWeight = FontWeight.Bold)
             Spacer(modifier = Modifier.height(8.dp))
             Row {
-                currentUser?.let { Text(text = it.email, fontSize = 15.sp, color = SecondaryText) }
+                currentUser?.let {
+                    Text(text = it.email.maskIfPrivate(privacyMode), fontSize = 15.sp, color = SecondaryText)
+                }
                 currentOrg?.let {
-                    Text(text = "  ·  ${it.name}", fontSize = 15.sp, color = SecondaryText)
+                    Text(text = "  ·  ${it.name.maskIfPrivate(privacyMode)}", fontSize = 15.sp, color = SecondaryText)
                 }
             }
 
